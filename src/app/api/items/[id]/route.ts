@@ -47,7 +47,7 @@ export async function PUT(
         const data: UpdateItemData = await request.json();
 
         // 4. Construct the payload for Prisma update, only including fields present in the request
-        const updatePayload: { [key: string]: any } = {
+        const updatePayload: { [key: string]: string | number | Date | null | ProgressStatus | DeliveryMethod } = { // More specific type for updatePayload values
             updatedAt: new Date(), // Always update the updatedAt timestamp
         };
 
@@ -80,15 +80,24 @@ export async function PUT(
 
         return NextResponse.json(updatedItem);
 
-    } catch (error: any) {
+    } catch (e: unknown) { // Changed error type from any to unknown
+        const error = e; // Assign to a new const for easier reading if preferred
         console.error(`PUT /api/items/${context.params.id} Error:`, error);
-        if (error.code === 'P2025') { // Prisma error code for record not found
+
+        // Check for Prisma P2025 error (Record to update not found)
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '해당 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
         }
-        if (error instanceof SyntaxError) { // JSON parsing error
+        // Check for JSON parsing error
+        if (error instanceof SyntaxError) {
             return NextResponse.json({ error: '잘못된 요청 본문 형식입니다.' }, { status: 400 });
         }
-        return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+        // Default server error
+        let message = '서버 오류가 발생했습니다.';
+        if (error instanceof Error) { // Check if it's an Error instance to safely access message
+            message = error.message;
+        }
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -123,18 +132,24 @@ export async function DELETE(
         });
 
         // 4. Return a success response
-        // Standard practice for DELETE is often a 204 No Content response with no body,
-        // or a 200 OK with a confirmation message.
         return NextResponse.json({ message: `ID ${itemId} 비품이 성공적으로 삭제되었습니다.` }, { status: 200 });
         // Alternatively, for 204 No Content:
         // return new NextResponse(null, { status: 204 });
 
-    } catch (error: any) {
+    } catch (e: unknown) { // Changed error type from any to unknown
+        const error = e;
         console.error(`DELETE /api/items/${context.params.id} Error:`, error);
-        if (error.code === 'P2025') { // Prisma error code for record to delete not found
+
+        // Check for Prisma P2025 error (Record to delete not found)
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '삭제할 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
         }
-        return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+        // Default server error
+        let message = '서버 오류가 발생했습니다.';
+        if (error instanceof Error) {
+            message = error.message;
+        }
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -166,9 +181,15 @@ export async function GET(
     }
 
     return NextResponse.json(item);
-  } catch (error: any) {
+  } catch (e: unknown) { // Changed error type from any to unknown
+    const error = e;
     console.error(`GET /api/items/${context.params.id} Error:`, error);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    // Default server error
+    let message = '서버 오류가 발생했습니다.';
+    if (error instanceof Error) {
+        message = error.message;
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 */
