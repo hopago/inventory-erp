@@ -1021,9 +1021,11 @@ export default function TablePage() {
       setItems(data.items || []);
       setTotalDbItems(data.totalItems || 0);
       setServerTotalPages(data.totalPages || 0);
-    } catch (error: any) {
-      console.error("데이터 로드 실패:", error);
-      setGlobalError(error.message || "데이터 로드 중 알 수 없는 오류 발생");
+    } catch (error: unknown) {
+      const err = error as Error; // Ensure error is typed correctly
+      // Changed from any to Error
+      console.error("데이터 로드 실패:", err);
+      setGlobalError(err.message || "데이터 로드 중 알 수 없는 오류 발생");
       setItems([]);
       setTotalDbItems(0);
       setServerTotalPages(0);
@@ -1246,9 +1248,11 @@ export default function TablePage() {
         setGlobalError(`저장 실패: ${errorData.error || "알 수 없는 오류"}`);
         if (isSequentialEditMode) setIsAddEditDialogOpen(true);
       }
-    } catch (error: any) {
-      console.error("저장 실패:", error);
-      setGlobalError(`저장 중 오류 발생: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      // Changed from any to Error
+      console.error("저장 실패:", err);
+      setGlobalError(`저장 중 오류 발생: ${err.message}`);
       if (isSequentialEditMode) setIsAddEditDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -1283,9 +1287,11 @@ export default function TablePage() {
         console.error("삭제 실패:", errorData);
         setGlobalError(`삭제 실패: ${errorData.error || "알 수 없는 오류"}`);
       }
-    } catch (error: any) {
-      console.error("삭제 실패:", error);
-      setGlobalError(`삭제 중 오류 발생: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      // Changed from any to Error
+      console.error("삭제 실패:", err);
+      setGlobalError(`삭제 중 오류 발생: ${err.message}`);
     } finally {
       setIsSingleDeleteConfirmOpen(false);
       setItemToDelete(null);
@@ -1311,8 +1317,24 @@ export default function TablePage() {
       setGlobalError(
         `${failedDeletes.length}개 항목 삭제 실패. 자세한 내용은 콘솔을 확인하세요.`
       );
-      failedDeletes.forEach(async (fail, index) => {
-        /* ... console error logging ... */
+      failedDeletes.forEach(async (result, index) => {
+        const originalId = currentSelectedItemIds[index];
+        if (result.status === "fulfilled" && !result.value.ok) {
+          try {
+            const errorJson = await result.value.json();
+            console.error(
+              `ID ${originalId} 삭제 실패 응답 (${result.value.status}):`,
+              errorJson
+            );
+          } catch (e) {
+            console.error(
+              `ID ${originalId} 삭제 실패 응답 (파싱 불가, 상태 ${result.value.status}):`,
+              result.value.statusText
+            );
+          }
+        } else if (result.status === "rejected") {
+          console.error(`ID ${originalId} 삭제 요청 실패:`, result.reason);
+        }
       });
     } else {
       setGlobalError(null);
@@ -1360,8 +1382,24 @@ export default function TablePage() {
       setGlobalError(
         `${failedUpdates.length}개 항목 상태 변경 실패. 자세한 내용은 콘솔을 확인하세요.`
       );
-      failedUpdates.forEach(async (fail, index) => {
-        /* ... console error logging ... */
+      failedUpdates.forEach(async (result, index) => {
+        const originalId = currentSelectedItemIds[index];
+        if (result.status === "fulfilled" && !result.value.ok) {
+          try {
+            const errorJson = await result.value.json();
+            console.error(
+              `ID ${originalId} 상태변경 실패 응답 (${result.value.status}):`,
+              errorJson
+            );
+          } catch (e) {
+            console.error(
+              `ID ${originalId} 상태변경 실패 응답 (파싱 불가, 상태 ${result.value.status}):`,
+              result.value.statusText
+            );
+          }
+        } else if (result.status === "rejected") {
+          console.error(`ID ${originalId} 상태변경 요청 실패:`, result.reason);
+        }
       });
     } else {
       setGlobalError(null);
