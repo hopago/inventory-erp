@@ -201,6 +201,9 @@ const TodoPage: React.FC = () => {
             }
           } catch (parseError) {
             // Ignore if response is not JSON or other parsing error
+            console.error("Error parsing response:", parseError);
+            // Fallback to generic error message
+            errorMessage = "알 수 없는 오류가 발생했습니다. 다시 시도해주세요.";
           }
           throw new Error(errorMessage);
         }
@@ -223,11 +226,7 @@ const TodoPage: React.FC = () => {
           });
         } else {
           // Handle cases where result.success is false or data/meta is missing, if applicable
-          throw new Error(
-            result.success === false && (result as any).error
-              ? (result as any).error
-              : "수신된 데이터 형식이 올바르지 않습니다."
-          );
+          throw new Error("수신된 데이터 형식이 올바르지 않습니다.");
         }
 
         if (showToast) {
@@ -512,7 +511,7 @@ const TodoPage: React.FC = () => {
   //#region Form utils
   const resetForm = useCallback(
     () => setFormData(initialFormData),
-    [initialFormData]
+    [initialFormData] // Ensure initialFormData is stable
   ); // Memoize resetForm
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -575,28 +574,6 @@ const TodoPage: React.FC = () => {
 
   const isAllTodosSelected =
     todos.length > 0 && selectedTodoIds.size === todos.length;
-
-  const formatDeadline = (deadlineString: string | null): string => {
-    if (!deadlineString) return "마감기한 없음";
-    try {
-      const date = new Date(deadlineString);
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return "유효하지 않은 날짜";
-      }
-      return date.toLocaleString("ko-KR", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-    } catch (e) {
-      // This catch might not be strictly necessary if the above isNaN check is robust
-      return "날짜 변환 오류";
-    }
-  };
 
   //#region Render
   // JSX remains largely the same as it was focused on UI structure.
