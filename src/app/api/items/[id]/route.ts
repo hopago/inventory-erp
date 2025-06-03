@@ -26,13 +26,12 @@ interface RouteParams {
 /**
  * Handles PUT requests to update an existing item.
  * @param request - The incoming NextRequest.
- * @param context - The context object containing route parameters.
- * @param context.params - The route parameters with an 'id' property.
+ * @param params - The route parameters with an 'id' property, destructured from the context.
  * @returns A NextResponse with the updated item or an error message.
  */
 export async function PUT(
     request: NextRequest,
-    context: { params: RouteParams } // Updated to use RouteParams interface
+    { params }: { params: RouteParams } // Destructuring params from context
 ) {
     try {
         // 1. Authenticate the request
@@ -42,7 +41,7 @@ export async function PUT(
         }
 
         // 2. Parse the item ID from route parameters
-        const itemId = parseInt(context.params.id, 10);
+        const itemId = parseInt(params.id, 10); // Using destructured params
         if (isNaN(itemId)) {
             return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
         }
@@ -86,7 +85,7 @@ export async function PUT(
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`PUT /api/items/${context.params.id} Error:`, error);
+        console.error(`PUT /api/items/${params.id} Error:`, error); // Using destructured params
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '해당 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -105,13 +104,12 @@ export async function PUT(
 /**
  * Handles DELETE requests to remove an item.
  * @param request - The incoming NextRequest.
- * @param context - The context object containing route parameters.
- * @param context.params - The route parameters with an 'id' property.
+ * @param params - The route parameters with an 'id' property, destructured from the context.
  * @returns A NextResponse with a success message or an error message.
  */
 export async function DELETE(
     request: NextRequest,
-    context: { params: RouteParams } // Updated to use RouteParams interface
+    { params }: { params: RouteParams } // Destructuring params from context
 ) {
     try {
         // 1. Authenticate the request
@@ -121,7 +119,7 @@ export async function DELETE(
         }
 
         // 2. Parse the item ID from route parameters
-        const itemId = parseInt(context.params.id, 10);
+        const itemId = parseInt(params.id, 10); // Using destructured params
         if (isNaN(itemId)) {
             return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
         }
@@ -138,7 +136,7 @@ export async function DELETE(
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`DELETE /api/items/${context.params.id} Error:`, error);
+        console.error(`DELETE /api/items/${params.id} Error:`, error); // Using destructured params
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '삭제할 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -156,7 +154,7 @@ export async function DELETE(
 /*
 export async function GET(
   request: NextRequest,
-  context: { params: RouteParams } // Updated to use RouteParams interface
+  { params }: { params: RouteParams } // Destructuring params from context
 ) {
   try {
     // Optional: Token verification if fetching single items also requires auth
@@ -165,7 +163,7 @@ export async function GET(
     //   return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
     // }
 
-    const itemId = parseInt(context.params.id, 10);
+    const itemId = parseInt(params.id, 10); // Using destructured params
     if (isNaN(itemId)) {
       return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
     }
@@ -181,7 +179,7 @@ export async function GET(
     return NextResponse.json(item);
   } catch (e: unknown) { 
     const error = e;
-    console.error(`GET /api/items/${context.params.id} Error:`, error);
+    console.error(`GET /api/items/${params.id} Error:`, error); // Using destructured params
     let message = '서버 오류가 발생했습니다.';
     if (error instanceof Error) {
         message = error.message;
