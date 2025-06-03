@@ -1,7 +1,7 @@
 // app/table/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 // Assuming your new table components are now the default export from @/components/ui/table
 // If they are in a different file, adjust the import path accordingly.
@@ -265,7 +265,7 @@ interface ItemsTableProps {
   onSelectAll: (checked: boolean | "indeterminate") => void;
   onSelectItem: (itemId: number, checked: boolean | "indeterminate") => void;
   onRequestSort: (key: keyof Item) => void;
-  getSortIcon: (columnKey: keyof Item) => JSX.Element;
+  getSortIcon: (columnKey: keyof Item) => React.JSX.Element;
   onEditItem: (item: Item) => void;
   onDeleteItem: (item: Item) => void;
   isLoading: boolean;
