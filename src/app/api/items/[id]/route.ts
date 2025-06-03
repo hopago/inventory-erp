@@ -33,6 +33,8 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: RouteParams } // Destructuring params from context
 ) {
+    const { id } = params; // Destructure id from params object
+
     try {
         // 1. Authenticate the request
         const token = request.cookies.get('token')?.value;
@@ -41,7 +43,7 @@ export async function PUT(
         }
 
         // 2. Parse the item ID from route parameters
-        const itemId = parseInt(params.id, 10); // Using destructured params
+        const itemId = parseInt(id, 10); // Using destructured id
         if (isNaN(itemId)) {
             return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
         }
@@ -85,7 +87,7 @@ export async function PUT(
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`PUT /api/items/${params.id} Error:`, error); // Using destructured params
+        console.error(`PUT /api/items/${id} Error:`, error); // Using destructured id
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '해당 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -111,6 +113,8 @@ export async function DELETE(
     request: NextRequest,
     { params }: { params: RouteParams } // Destructuring params from context
 ) {
+    const { id } = params; // Destructure id from params object
+
     try {
         // 1. Authenticate the request
         const token = request.cookies.get('token')?.value;
@@ -119,7 +123,7 @@ export async function DELETE(
         }
 
         // 2. Parse the item ID from route parameters
-        const itemId = parseInt(params.id, 10); // Using destructured params
+        const itemId = parseInt(id, 10); // Using destructured id
         if (isNaN(itemId)) {
             return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
         }
@@ -136,7 +140,7 @@ export async function DELETE(
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`DELETE /api/items/${params.id} Error:`, error); // Using destructured params
+        console.error(`DELETE /api/items/${id} Error:`, error); // Using destructured id
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '삭제할 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -156,6 +160,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: RouteParams } // Destructuring params from context
 ) {
+  const { id } = params; // Destructure id from params object
+
   try {
     // Optional: Token verification if fetching single items also requires auth
     // const token = request.cookies.get('token')?.value;
@@ -163,7 +169,7 @@ export async function GET(
     //   return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
     // }
 
-    const itemId = parseInt(params.id, 10); // Using destructured params
+    const itemId = parseInt(id, 10); // Using destructured id
     if (isNaN(itemId)) {
       return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
     }
@@ -179,7 +185,7 @@ export async function GET(
     return NextResponse.json(item);
   } catch (e: unknown) { 
     const error = e;
-    console.error(`GET /api/items/${params.id} Error:`, error); // Using destructured params
+    console.error(`GET /api/items/${id} Error:`, error); // Using destructured id
     let message = '서버 오류가 발생했습니다.';
     if (error instanceof Error) {
         message = error.message;
