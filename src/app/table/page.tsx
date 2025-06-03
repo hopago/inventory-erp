@@ -1453,7 +1453,7 @@ export default function TablePage() {
       } else if (failedDeletes.length > 0 && numSuccessfullyDeleted === 0) {
         toast.error(`${failedDeletes.length}개 항목 삭제에 모두 실패했습니다.`);
       }
-      failedDeletes.forEach(async (result, index) => {
+      failedDeletes.forEach(async (result) => {
         const originalId =
           currentSelectedItemIds[results.findIndex((r) => r === result)]; // Find original ID
         if (result.status === "fulfilled" && !result.value.ok) {

@@ -7,7 +7,7 @@ import { z } from "zod";
 const isDev = process.env.NODE_ENV === "development";
 
 const successResponse = <T>(data: T, status = 200, meta?: object) => {
-    const payload: any = { success: true, data };
+    const payload: { success: true; data: T; meta?: object } = { success: true, data };
     if (meta) payload.meta = meta;
     return NextResponse.json(payload, { status });
 };
