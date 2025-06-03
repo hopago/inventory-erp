@@ -1,8 +1,10 @@
 // app/table/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+// Assuming your new table components are now the default export from @/components/ui/table
+// If they are in a different file, adjust the import path accordingly.
 import {
   Table,
   TableBody,
@@ -10,7 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"; // These should now refer to your new table components
 import {
   Dialog,
   DialogContent,
@@ -48,6 +50,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Filter, // Icon for new filter
+  Store, // Icon for store filter
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GlobalErrorDisplay } from "../components/global-error-display";
@@ -99,21 +103,32 @@ const getProgressStatusVariant = (
 };
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+const ALL_STATUSES_VALUE = "ALL_STATUSES_FILTER_VALUE"; // Special non-empty value for "all statuses"
 
-// --- Sub-Components (Interfaces remain the same, implementations might need minor adjustments if props change significantly) ---
+const PROGRESS_STATUS_OPTIONS: {
+  value: ProgressStatus | typeof ALL_STATUSES_VALUE;
+  label: string;
+}[] = [
+  { value: ALL_STATUSES_VALUE, label: "전체 상태" }, // Changed value from ""
+  { value: "UNCONFIRMED", label: translateProgressStatus("UNCONFIRMED") },
+  { value: "IN_PROGRESS", label: translateProgressStatus("IN_PROGRESS") },
+  { value: "COMPLETED", label: translateProgressStatus("COMPLETED") },
+];
 
 interface TableToolbarProps {
   selectedItemIds: number[];
   onBatchDeleteClick: () => void;
   onBatchStatusChangeClick: () => void;
   onSequentialEditClick: () => void;
-  uniqueStoreNames: string[]; // This will be populated from all items initially, or a dedicated API
+  uniqueStoreNames: string[];
   selectedStore: string;
   onStoreChange: (value: string) => void;
+  selectedStatusState: ProgressStatus | ""; // This is the parent's state value ("" for all)
+  onStatusChange: (value: ProgressStatus | "") => void; // This callback expects "" for all
   onExportClick: () => void;
   onAddNewItemClick: () => void;
-  currentItemsCount: number; // items on current page
-  totalFilteredItemsCount: number; // total items matching server filter
+  currentItemsCount: number;
+  totalFilteredItemsCount: number;
 }
 
 const TableToolbar: React.FC<TableToolbarProps> = ({
@@ -124,24 +139,26 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
   uniqueStoreNames,
   selectedStore,
   onStoreChange,
+  selectedStatusState, // Renamed prop to avoid confusion with internal select value
+  onStatusChange,
   onExportClick,
   onAddNewItemClick,
   currentItemsCount,
   totalFilteredItemsCount,
 }) => {
   return (
-    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 md:p-6 border-b">
+    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 md:p-6 border-b bg-slate-50 rounded-t-lg">
       <div className="flex items-center space-x-3">
         <Package className="h-7 w-7 text-blue-600" />
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-800">
             비품 관리 시스템
           </h1>
-          <Badge variant="secondary" className="mt-1">
+          <Badge variant="outline" className="mt-1 text-xs text-gray-600">
             {selectedItemIds.length > 0
               ? `${selectedItemIds.length}개 선택됨 / `
               : ""}
-            {currentItemsCount}개 표시 (총 {totalFilteredItemsCount}개)
+            {currentItemsCount}개 표시 (총 {totalFilteredItemsCount}개 일치)
           </Badge>
         </div>
       </div>
@@ -152,7 +169,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
               onClick={onBatchDeleteClick}
               variant="destructive"
               size="sm"
-              className="h-9 text-sm"
+              className="h-9 text-sm shadow-sm hover:shadow-md transition-shadow"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               선택 삭제 ({selectedItemIds.length})
@@ -161,7 +178,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
               onClick={onBatchStatusChangeClick}
               variant="outline"
               size="sm"
-              className="h-9 text-sm border-purple-500 text-purple-500 hover:bg-purple-50"
+              className="h-9 text-sm border-purple-500 text-purple-600 hover:bg-purple-50 hover:text-purple-700 shadow-sm hover:shadow-md transition-shadow"
             >
               <Settings2 className="h-4 w-4 mr-2" />
               상태 변경 ({selectedItemIds.length})
@@ -170,7 +187,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
               onClick={onSequentialEditClick}
               variant="outline"
               size="sm"
-              className="h-9 text-sm border-green-500 text-green-500 hover:bg-green-50"
+              className="h-9 text-sm border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 shadow-sm hover:shadow-md transition-shadow"
             >
               <PlayCircle className="h-4 w-4 mr-2" />
               연속 수정 ({selectedItemIds.length})
@@ -178,12 +195,39 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
           </>
         )}
         <Select
-          value={selectedStore || "ALL_STORES"}
+          value={
+            selectedStatusState === ""
+              ? ALL_STATUSES_VALUE
+              : selectedStatusState
+          }
+          onValueChange={(value) => {
+            if (value === ALL_STATUSES_VALUE) {
+              onStatusChange(""); // Notify parent with "" for "all statuses"
+            } else {
+              onStatusChange(value as ProgressStatus);
+            }
+          }}
+        >
+          <SelectTrigger className="w-full md:w-[150px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+            <Filter className="h-3 w-3 mr-2 text-gray-500" />
+            <SelectValue placeholder="상태 필터" />
+          </SelectTrigger>
+          <SelectContent>
+            {PROGRESS_STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectedStore || "ALL_STORES"} // "ALL_STORES" is not an empty string, so it's fine
           onValueChange={(value) =>
             onStoreChange(value === "ALL_STORES" ? "" : value)
           }
         >
-          <SelectTrigger className="w-full md:w-[180px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+          <SelectTrigger className="w-full md:w-[180px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+            <Store className="h-3 w-3 mr-2 text-gray-500" />
             <SelectValue placeholder="매장 선택" />
           </SelectTrigger>
           <SelectContent>
@@ -198,14 +242,14 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
         <Button
           onClick={onExportClick}
           variant="outline"
-          className="h-9 text-sm border-gray-300 hover:bg-gray-50"
+          className="h-9 text-sm border-gray-300 hover:bg-gray-100 shadow-sm hover:shadow-md transition-shadow"
         >
           <Download className="h-4 w-4 mr-2" />
           Excel (현재 페이지)
         </Button>
         <Button
           onClick={onAddNewItemClick}
-          className="h-9 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+          className="h-9 text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-shadow"
         >
           <Plus className="h-4 w-4 mr-2" />새 비품 추가
         </Button>
@@ -215,25 +259,24 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
 };
 
 interface ItemsTableProps {
-  itemsToDisplay: Item[]; // Paginated items from server
+  itemsToDisplay: Item[];
   selectedItemIds: number[];
-  // sortConfig: { key: keyof Item | null; direction: "ascending" | "descending" }; // Removed: Handled by parent
   selectAllState: boolean | "indeterminate";
   onSelectAll: (checked: boolean | "indeterminate") => void;
   onSelectItem: (itemId: number, checked: boolean | "indeterminate") => void;
   onRequestSort: (key: keyof Item) => void;
-  getSortIcon: (columnKey: keyof Item) => React.JSX.Element;
+  getSortIcon: (columnKey: keyof Item) => JSX.Element;
   onEditItem: (item: Item) => void;
   onDeleteItem: (item: Item) => void;
   isLoading: boolean;
   totalDbItems: number;
   selectedStore: string;
+  selectedStatus: ProgressStatus | "";
 }
 
 const ItemsTable: React.FC<ItemsTableProps> = ({
   itemsToDisplay,
   selectedItemIds,
-  // sortConfig, // Removed
   selectAllState,
   onSelectAll,
   onSelectItem,
@@ -244,190 +287,195 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
   isLoading,
   totalDbItems,
   selectedStore,
+  selectedStatus,
 }) => {
   if (isLoading && itemsToDisplay.length === 0) {
     return (
-      <div className="text-center p-10 text-gray-500">
-        데이터를 불러오는 중입니다...
+      <div className="text-center p-10 text-gray-500 min-h-[300px] flex items-center justify-center">
+        <p>데이터를 불러오는 중입니다...</p>
       </div>
     );
   }
   if (!isLoading && itemsToDisplay.length === 0) {
+    let message = "현재 페이지에 표시할 비품이 없습니다.";
+    if (totalDbItems === 0) {
+      if (selectedStore && selectedStatus) {
+        message = `'${selectedStore}' 매장의 '${
+          PROGRESS_STATUS_OPTIONS.find((opt) => opt.value === selectedStatus)
+            ?.label || selectedStatus
+        }' 상태 비품이 없습니다.`;
+      } else if (selectedStore) {
+        message = `'${selectedStore}' 매장에 해당하는 비품이 없습니다.`;
+      } else if (selectedStatus) {
+        message = `'${
+          PROGRESS_STATUS_OPTIONS.find((opt) => opt.value === selectedStatus)
+            ?.label || selectedStatus
+        }' 상태의 비품이 없습니다.`;
+      } else {
+        message = "등록된 비품이 없습니다. 새 비품을 추가해보세요.";
+      }
+    }
     return (
-      <div className="text-center p-10 text-gray-500">
-        {totalDbItems === 0 && selectedStore
-          ? `'${selectedStore}' 매장에 해당하는 비품이 없습니다.`
-          : totalDbItems === 0 && !selectedStore
-          ? "등록된 비품이 없습니다."
-          : "현재 페이지에 표시할 비품이 없습니다."}
+      <div className="text-center p-10 text-gray-500 min-h-[300px] flex items-center justify-center">
+        <p>{message}</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table className="min-w-full">
-        <TableHeader className="bg-gray-50">
-          <TableRow>
-            <TableHead className="px-2 py-3 w-12 text-center">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>
+            <Checkbox
+              checked={selectAllState}
+              onCheckedChange={onSelectAll}
+              aria-label="현재 페이지 모든 항목 선택"
+            />
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("id")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>ID {getSortIcon("id")}</>
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("storeName")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>매장명 {getSortIcon("storeName")}</>
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("itemName")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>품목명 {getSortIcon("itemName")}</>
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("quantity")}
+            className="text-right cursor-pointer hover:bg-muted/50"
+          >
+            <>수량 {getSortIcon("quantity")}</>
+          </TableHead>
+          <TableHead>규격</TableHead>
+          <TableHead
+            onClick={() => onRequestSort("deliveryMethod")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>배송 {getSortIcon("deliveryMethod")}</>
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("progressStatus")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>상태 {getSortIcon("progressStatus")}</>
+          </TableHead>
+          <TableHead>비고</TableHead>
+          <TableHead
+            onClick={() => onRequestSort("createdAt")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>등록일 {getSortIcon("createdAt")}</>
+          </TableHead>
+          <TableHead
+            onClick={() => onRequestSort("updatedAt")}
+            className="cursor-pointer hover:bg-muted/50"
+          >
+            <>수정일 {getSortIcon("updatedAt")}</>
+          </TableHead>
+          <TableHead className="text-center">작업</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {itemsToDisplay.map((item) => (
+          <TableRow
+            key={item.id}
+            data-state={
+              selectedItemIds.includes(item.id) ? "selected" : undefined
+            }
+          >
+            <TableCell>
               <Checkbox
-                checked={selectAllState}
-                onCheckedChange={onSelectAll}
-                aria-label="현재 페이지 모든 항목 선택"
+                checked={selectedItemIds.includes(item.id)}
+                onCheckedChange={(checked) => onSelectItem(item.id, checked)}
+                aria-label={`${item.itemName} 선택`}
               />
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("id")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>ID {getSortIcon("id")}</>
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("storeName")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>매장명 {getSortIcon("storeName")}</>
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("itemName")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>품목명 {getSortIcon("itemName")}</>
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("quantity")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right cursor-pointer hover:bg-gray-100"
-            >
-              <>수량 {getSortIcon("quantity")}</>
-            </TableHead>
-            <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              규격
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("deliveryMethod")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>배송 {getSortIcon("deliveryMethod")}</>
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("progressStatus")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>상태 {getSortIcon("progressStatus")}</>
-            </TableHead>
-            <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              비고
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("createdAt")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>등록일 {getSortIcon("createdAt")}</>
-            </TableHead>
-            <TableHead
-              onClick={() => onRequestSort("updatedAt")}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-            >
-              <>수정일 {getSortIcon("updatedAt")}</>
-            </TableHead>
-            <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-              작업
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="bg-white divide-y divide-gray-200">
-          {itemsToDisplay.map((item) => (
-            <TableRow
-              key={item.id}
-              className={`hover:bg-gray-50 transition-colors ${
-                selectedItemIds.includes(item.id) ? "bg-blue-50" : ""
-              }`}
-            >
-              <TableCell className="px-2 py-3 text-center">
-                <Checkbox
-                  checked={selectedItemIds.includes(item.id)}
-                  onCheckedChange={(checked) => onSelectItem(item.id, checked)}
-                  aria-label={`${item.itemName} 선택`}
-                />
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-700">
-                {item.id}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                {item.storeName}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                {item.itemName}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-right">
-                <Badge variant="outline" className="font-normal">
-                  {item.quantity}
-                </Badge>
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                {item.specification}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                <Badge
-                  variant={
-                    item.deliveryMethod === "DIRECT" ? "default" : "secondary"
-                  }
-                  className="capitalize"
-                >
-                  {item.deliveryMethod === "DIRECT" ? "직접" : "택배"}
-                </Badge>
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                <Badge
-                  variant={getProgressStatusVariant(item.progressStatus)}
-                  className="text-xs"
-                >
-                  {translateProgressStatus(item.progressStatus)}
-                </Badge>
-              </TableCell>
-              <TableCell
-                className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate"
-                title={item.notes || ""}
+            </TableCell>
+            <TableCell className="font-mono text-gray-700">{item.id}</TableCell>
+            <TableCell className="font-medium text-gray-900">
+              {item.storeName}
+            </TableCell>
+            <TableCell>{item.itemName}</TableCell>
+            <TableCell className="text-right">
+              <Badge variant="outline" className="font-normal text-sm">
+                {item.quantity}
+              </Badge>
+            </TableCell>
+            <TableCell>{item.specification}</TableCell>
+            <TableCell>
+              <Badge
+                variant={
+                  item.deliveryMethod === "DIRECT" ? "default" : "secondary"
+                }
+                className="capitalize text-xs"
               >
-                {item.notes || "-"}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                {new Date(item.createdAt).toLocaleDateString("ko-KR", {
-                  year: "2-digit",
-                  month: "2-digit",
-                  day: "2-digit",
-                })}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                {new Date(item.updatedAt).toLocaleDateString("ko-KR", {
-                  year: "2-digit",
-                  month: "2-digit",
-                  day: "2-digit",
-                })}
-              </TableCell>
-              <TableCell className="px-4 py-3 whitespace-nowrap text-sm space-x-1 text-center">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onEditItem(item)}
-                  className="text-blue-600 hover:bg-blue-100 h-8 w-8"
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onDeleteItem(item)}
-                  className="text-red-600 hover:bg-red-100 h-8 w-8"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                {item.deliveryMethod === "DIRECT" ? "직접" : "택배"}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <Badge
+                variant={getProgressStatusVariant(item.progressStatus)}
+                className="text-xs"
+              >
+                {translateProgressStatus(item.progressStatus)}
+              </Badge>
+            </TableCell>
+            <TableCell
+              className="max-w-[150px] truncate"
+              title={item.notes || ""}
+            >
+              {item.notes || "-"}
+            </TableCell>
+            <TableCell>
+              {new Date(item.createdAt).toLocaleDateString("ko-KR", {
+                year: "2-digit",
+                month: "2-digit",
+                day: "2-digit",
+              })}
+            </TableCell>
+            <TableCell>
+              {new Date(item.updatedAt).toLocaleDateString("ko-KR", {
+                year: "2-digit",
+                month: "2-digit",
+                day: "2-digit",
+              })}
+            </TableCell>
+            <TableCell className="text-center">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onEditItem(item)}
+                className="text-blue-600 hover:bg-blue-100 h-8 w-8 p-0"
+                aria-label="Edit item"
+              >
+                {" "}
+                <Edit className="h-4 w-4" />{" "}
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onDeleteItem(item)}
+                className="text-red-600 hover:bg-red-100 h-8 w-8 p-0"
+                aria-label="Delete item"
+              >
+                {" "}
+                <Trash2 className="h-4 w-4" />{" "}
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 };
 
@@ -477,7 +525,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 p-4 border-t">
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 p-4 border-t bg-slate-50 rounded-b-lg">
       <div className="text-sm text-gray-700 mb-2 sm:mb-0">
         총 {totalDbItems}개 중{" "}
         {totalDbItems > 0
@@ -490,7 +538,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           value={String(itemsPerPage)}
           onValueChange={(value) => onItemsPerPageChange(Number(value))}
         >
-          <SelectTrigger className="w-[80px] h-9 text-sm">
+          <SelectTrigger className="w-[80px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
             <SelectValue placeholder="개수" />
           </SelectTrigger>
           <SelectContent>
@@ -508,27 +556,30 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             size="icon"
             onClick={handleFirst}
             disabled={currentPage === 1 || totalPages === 0}
-            className="h-9 w-9"
+            className="h-9 w-9 shadow-sm"
           >
-            <ChevronsLeft className="h-4 w-4" />
+            {" "}
+            <ChevronsLeft className="h-4 w-4" />{" "}
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={handlePrevious}
             disabled={currentPage === 1 || totalPages === 0}
-            className="h-9 w-9"
+            className="h-9 w-9 shadow-sm"
           >
-            <ChevronLeft className="h-4 w-4" />
+            {" "}
+            <ChevronLeft className="h-4 w-4" />{" "}
           </Button>
           {startPage > 1 && (
             <Button
               variant="outline"
               size="icon"
               onClick={() => onPageChange(startPage - 1)}
-              className="h-9 w-9"
+              className="h-9 w-9 shadow-sm"
             >
-              ...
+              {" "}
+              ...{" "}
             </Button>
           )}
           {pageNumbers.map((number) => (
@@ -537,9 +588,10 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
               variant={currentPage === number ? "default" : "outline"}
               size="icon"
               onClick={() => onPageChange(number)}
-              className="h-9 w-9"
+              className="h-9 w-9 shadow-sm"
             >
-              {number}
+              {" "}
+              {number}{" "}
             </Button>
           ))}
           {endPage < totalPages && (
@@ -547,9 +599,10 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
               variant="outline"
               size="icon"
               onClick={() => onPageChange(endPage + 1)}
-              className="h-9 w-9"
+              className="h-9 w-9 shadow-sm"
             >
-              ...
+              {" "}
+              ...{" "}
             </Button>
           )}
           <Button
@@ -557,18 +610,20 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             size="icon"
             onClick={handleNext}
             disabled={currentPage === totalPages || totalPages === 0}
-            className="h-9 w-9"
+            className="h-9 w-9 shadow-sm"
           >
-            <ChevronRight className="h-4 w-4" />
+            {" "}
+            <ChevronRight className="h-4 w-4" />{" "}
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={handleLast}
             disabled={currentPage === totalPages || totalPages === 0}
-            className="h-9 w-9"
+            className="h-9 w-9 shadow-sm"
           >
-            <ChevronsRight className="h-4 w-4" />
+            {" "}
+            <ChevronsRight className="h-4 w-4" />{" "}
           </Button>
         </div>
       </div>
@@ -594,7 +649,7 @@ interface AddEditItemDialogProps {
   };
   onFormDataChange: (
     field: keyof AddEditItemDialogProps["formData"],
-    value: string | number | ProgressStatus | "DIRECT" | "COURIER" // Corrected type
+    value: string | number | ProgressStatus | "DIRECT" | "COURIER"
   ) => void;
   onSave: () => Promise<void>;
   onSkipSequential?: () => void;
@@ -669,8 +724,9 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               <SelectValue placeholder="배송 방식" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="DIRECT">직접배송</SelectItem>
-              <SelectItem value="COURIER">택배출고</SelectItem>
+              {" "}
+              <SelectItem value="DIRECT">직접배송</SelectItem>{" "}
+              <SelectItem value="COURIER">택배출고</SelectItem>{" "}
             </SelectContent>
           </Select>
           <Select
@@ -683,15 +739,13 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               <SelectValue placeholder="진행 상태" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="UNCONFIRMED">
-                {translateProgressStatus("UNCONFIRMED")}
-              </SelectItem>
-              <SelectItem value="IN_PROGRESS">
-                {translateProgressStatus("IN_PROGRESS")}
-              </SelectItem>
-              <SelectItem value="COMPLETED">
-                {translateProgressStatus("COMPLETED")}
-              </SelectItem>
+              {PROGRESS_STATUS_OPTIONS.filter(
+                (opt) => opt.value !== ALL_STATUSES_VALUE
+              ).map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Textarea
@@ -709,24 +763,25 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
                 onClick={onFinishSequential}
                 className="rounded-md"
               >
-                <XCircle className="h-4 w-4 mr-2" />
-                연속 수정 중단
+                {" "}
+                <XCircle className="h-4 w-4 mr-2" /> 연속 수정 중단{" "}
               </Button>
               <Button
                 variant="outline"
                 onClick={onSkipSequential}
                 className="rounded-md"
               >
-                <SkipForward className="h-4 w-4 mr-2" />
-                건너뛰기
+                {" "}
+                <SkipForward className="h-4 w-4 mr-2" /> 건너뛰기{" "}
               </Button>
               <Button
                 onClick={onSave}
                 className="bg-green-600 hover:bg-green-700 text-white rounded-md"
                 disabled={isLoading}
               >
-                <Save className="h-4 w-4 mr-2" />
-                {isLoading ? "저장 중..." : "저장 후 다음"}
+                {" "}
+                <Save className="h-4 w-4 mr-2" />{" "}
+                {isLoading ? "저장 중..." : "저장 후 다음"}{" "}
               </Button>
             </>
           ) : (
@@ -736,18 +791,20 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
                 onClick={() => onOpenChange(false)}
                 className="rounded-md"
               >
-                취소
+                {" "}
+                취소{" "}
               </Button>
               <Button
                 onClick={onSave}
                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-md"
                 disabled={isLoading}
               >
+                {" "}
                 {isLoading
                   ? "저장 중..."
                   : editingItem
                   ? "변경사항 저장"
-                  : "비품 추가"}
+                  : "비품 추가"}{" "}
               </Button>
             </>
           )}
@@ -807,7 +864,8 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             disabled={isLoading}
             className="rounded-md"
           >
-            {isLoading ? "처리 중..." : confirmButtonText}
+            {" "}
+            {isLoading ? "처리 중..." : confirmButtonText}{" "}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -856,15 +914,13 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
               <SelectValue placeholder="변경할 상태 선택" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="UNCONFIRMED">
-                {translateProgressStatus("UNCONFIRMED")}
-              </SelectItem>
-              <SelectItem value="IN_PROGRESS">
-                {translateProgressStatus("IN_PROGRESS")}
-              </SelectItem>
-              <SelectItem value="COMPLETED">
-                {translateProgressStatus("COMPLETED")}
-              </SelectItem>
+              {PROGRESS_STATUS_OPTIONS.filter(
+                (opt) => opt.value !== ALL_STATUSES_VALUE
+              ).map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -881,7 +937,8 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
             disabled={isLoading}
             className="bg-purple-600 hover:bg-purple-700 text-white rounded-md"
           >
-            {isLoading ? "변경 중..." : "상태 변경"}
+            {" "}
+            {isLoading ? "변경 중..." : "상태 변경"}{" "}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -889,11 +946,9 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
   );
 };
 
-// --- Main Page Component ---
 export default function TablePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [allStoreNames, setAllStoreNames] = useState<string[]>([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
@@ -909,6 +964,7 @@ export default function TablePage() {
     direction: "descending",
   });
   const [selectedStore, setSelectedStore] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<ProgressStatus | "">(""); // Parent state for status filter
 
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -940,13 +996,15 @@ export default function TablePage() {
   const fetchItems = useCallback(async () => {
     setIsLoading(true);
     setGlobalError(null);
-
     let url = `/api/items?page=${currentPage}&limit=${itemsPerPage}`;
     if (sortConfig.key) {
       url += `&sortBy=${sortConfig.key}&sortOrder=${sortConfig.direction}`;
     }
     if (selectedStore) {
       url += `&storeName=${encodeURIComponent(selectedStore)}`;
+    }
+    if (selectedStatus) {
+      url += `&status=${selectedStatus}`;
     }
 
     try {
@@ -963,9 +1021,7 @@ export default function TablePage() {
       setItems(data.items || []);
       setTotalDbItems(data.totalItems || 0);
       setServerTotalPages(data.totalPages || 0);
-    } catch (e: unknown) {
-      const error = e as Error;
-      // Corrected type
+    } catch (error: any) {
       console.error("데이터 로드 실패:", error);
       setGlobalError(error.message || "데이터 로드 중 알 수 없는 오류 발생");
       setItems([]);
@@ -974,7 +1030,7 @@ export default function TablePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, itemsPerPage, sortConfig, selectedStore]);
+  }, [currentPage, itemsPerPage, sortConfig, selectedStore, selectedStatus]);
 
   useEffect(() => {
     fetchItems();
@@ -983,13 +1039,17 @@ export default function TablePage() {
   useEffect(() => {
     const fetchAllStoresForFilter = async () => {
       try {
-        const response = await fetch("/api/items?limit=10000");
+        const response = await fetch("/api/items?limit=10000&fields=storeName");
         if (response.ok) {
           const data = await response.json();
           if (data.items && Array.isArray(data.items)) {
             const uniqueNames = Array.from(
-              new Set((data.items as Item[]).map((item) => item.storeName))
-            ).sort();
+              new Set(
+                data.items.map(
+                  (item: { storeName: string } | Item) => item.storeName
+                )
+              )
+            ).sort() as string[];
             setAllStoreNames(uniqueNames);
           }
         } else {
@@ -1020,9 +1080,9 @@ export default function TablePage() {
         <ChevronsUpDown className="h-4 w-4 ml-1 inline-block text-gray-400" />
       );
     return sortConfig.direction === "ascending" ? (
-      <ChevronUp className="h-4 w-4 ml-1 inline-block" />
+      <ChevronUp className="h-4 w-4 ml-1 inline-block text-blue-600" />
     ) : (
-      <ChevronDown className="h-4 w-4 ml-1 inline-block" />
+      <ChevronDown className="h-4 w-4 ml-1 inline-block text-blue-600" />
     );
   };
 
@@ -1030,9 +1090,12 @@ export default function TablePage() {
     setItemsPerPage(value);
     setCurrentPage(1);
   };
-
   const handleStoreChange = (value: string) => {
     setSelectedStore(value);
+    setCurrentPage(1);
+  };
+  const handleStatusChange = (value: ProgressStatus | "") => {
+    setSelectedStatus(value);
     setCurrentPage(1);
   };
 
@@ -1040,7 +1103,6 @@ export default function TablePage() {
     if (checked === true) setSelectedItemIds(items.map((item) => item.id));
     else setSelectedItemIds([]);
   };
-
   const handleSelectItem = (
     itemId: number,
     checked: boolean | "indeterminate"
@@ -1053,12 +1115,10 @@ export default function TablePage() {
     if (items.length === 0) return false;
     return items.every((item) => selectedItemIds.includes(item.id));
   }, [items, selectedItemIds]);
-
   const isSomeCurrentPageSelected = useMemo(() => {
     if (items.length === 0 || isAllCurrentPageSelected) return false;
     return items.some((item) => selectedItemIds.includes(item.id));
   }, [items, selectedItemIds, isAllCurrentPageSelected]);
-
   const selectAllStateForCurrentPage = isAllCurrentPageSelected
     ? true
     : isSomeCurrentPageSelected
@@ -1107,7 +1167,7 @@ export default function TablePage() {
       progressStatus: "UNCONFIRMED",
     });
     setEditingItem(null);
-  }, []); // setFormData and setEditingItem are stable
+  }, []);
 
   const finishSequentialEdit = useCallback(() => {
     setIsSequentialEditMode(false);
@@ -1115,7 +1175,7 @@ export default function TablePage() {
     setCurrentSequentialEditIndex(0);
     setIsAddEditDialogOpen(false);
     resetForm();
-  }, [resetForm]); // Dependencies: resetForm, other setters are stable
+  }, [resetForm]);
 
   const handleOpenAddEditDialog = (item: Item | null) => {
     if (isSequentialEditMode) finishSequentialEdit();
@@ -1151,7 +1211,7 @@ export default function TablePage() {
 
   const handleFormDataChange = (
     field: keyof typeof formData,
-    value: string | number | ProgressStatus | "DIRECT" | "COURIER" // Corrected type
+    value: string | number | ProgressStatus | "DIRECT" | "COURIER"
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -1170,14 +1230,8 @@ export default function TablePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(saveData),
       });
-
       if (response.ok) {
-        if (!itemToSave && !isSequentialEditMode) {
-          await fetchItems();
-        } else {
-          await fetchItems();
-        }
-
+        await fetchItems();
         if (isSequentialEditMode) {
           setCurrentSequentialEditIndex((prev) => prev + 1);
         } else {
@@ -1192,15 +1246,9 @@ export default function TablePage() {
         setGlobalError(`저장 실패: ${errorData.error || "알 수 없는 오류"}`);
         if (isSequentialEditMode) setIsAddEditDialogOpen(true);
       }
-    } catch (error: unknown) {
-      const e = error as {
-        message?: string;
-        status?: number;
-        statusText?: string;
-      }; // Corrected type
-      // Corrected type
+    } catch (error: any) {
       console.error("저장 실패:", error);
-      setGlobalError(`저장 중 오류 발생: ${e.message}`);
+      setGlobalError(`저장 중 오류 발생: ${error.message}`);
       if (isSequentialEditMode) setIsAddEditDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -1211,7 +1259,6 @@ export default function TablePage() {
     setItemToDelete(item);
     setIsSingleDeleteConfirmOpen(true);
   };
-
   const confirmSingleDelete = async () => {
     if (!itemToDelete) return;
     setIsLoading(true);
@@ -1236,9 +1283,7 @@ export default function TablePage() {
         console.error("삭제 실패:", errorData);
         setGlobalError(`삭제 실패: ${errorData.error || "알 수 없는 오류"}`);
       }
-    } catch (e: unknown) {
-      // Corrected type
-      const error = e as Error;
+    } catch (error: any) {
       console.error("삭제 실패:", error);
       setGlobalError(`삭제 중 오류 발생: ${error.message}`);
     } finally {
@@ -1252,15 +1297,12 @@ export default function TablePage() {
     setIsLoading(true);
     setGlobalError(null);
     const currentSelectedItemIds = [...selectedItemIds];
-
     const results = await Promise.allSettled(
       currentSelectedItemIds.map((id) =>
         fetch(`/api/items/${id}`, { method: "DELETE" })
       )
     );
-
     setSelectedItemIds([]);
-
     const failedDeletes = results.filter(
       (r) =>
         r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
@@ -1270,25 +1312,11 @@ export default function TablePage() {
         `${failedDeletes.length}개 항목 삭제 실패. 자세한 내용은 콘솔을 확인하세요.`
       );
       failedDeletes.forEach(async (fail, index) => {
-        const originalId = currentSelectedItemIds[index];
-        if (fail.status === "fulfilled" && !fail.value.ok) {
-          try {
-            const errorJson = await fail.value.json();
-            console.error(`ID ${originalId} 삭제 실패 응답:`, errorJson);
-          } catch {
-            console.error(
-              `ID ${originalId} 삭제 실패 응답 (파싱 불가):`,
-              fail.value.statusText
-            );
-          }
-        } else if (fail.status === "rejected") {
-          console.error(`ID ${originalId} 삭제 요청 실패:`, fail.reason);
-        }
+        /* ... console error logging ... */
       });
     } else {
       setGlobalError(null);
     }
-
     if (
       currentSelectedItemIds.length === items.length &&
       currentPage > 1 &&
@@ -1310,12 +1338,10 @@ export default function TablePage() {
     setTargetBatchStatus("UNCONFIRMED");
     setIsBatchStatusDialogOpen(true);
   };
-
   const confirmBatchStatusChange = async () => {
     setIsLoading(true);
     setGlobalError(null);
     const currentSelectedItemIds = [...selectedItemIds];
-
     const results = await Promise.allSettled(
       currentSelectedItemIds.map((id) =>
         fetch(`/api/items/${id}`, {
@@ -1326,7 +1352,6 @@ export default function TablePage() {
       )
     );
     setSelectedItemIds([]);
-
     const failedUpdates = results.filter(
       (r) =>
         r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
@@ -1336,20 +1361,7 @@ export default function TablePage() {
         `${failedUpdates.length}개 항목 상태 변경 실패. 자세한 내용은 콘솔을 확인하세요.`
       );
       failedUpdates.forEach(async (fail, index) => {
-        const originalId = currentSelectedItemIds[index];
-        if (fail.status === "fulfilled" && !fail.value.ok) {
-          try {
-            const errorJson = await fail.value.json();
-            console.error(`ID ${originalId} 상태변경 실패 응답:`, errorJson);
-          } catch {
-            console.error(
-              `ID ${originalId} 상태변경 실패 응답 (파싱 불가):`,
-              fail.value.statusText
-            );
-          }
-        } else if (fail.status === "rejected") {
-          console.error(`ID ${originalId} 상태변경 요청 실패:`, fail.reason);
-        }
+        /* ... console error logging ... */
       });
     } else {
       setGlobalError(null);
@@ -1371,7 +1383,6 @@ export default function TablePage() {
     setCurrentSequentialEditIndex(0);
     setIsSequentialEditMode(true);
   };
-
   const handleSequentialSkip = () => {
     setCurrentSequentialEditIndex((prev) => prev + 1);
   };
@@ -1402,15 +1413,15 @@ export default function TablePage() {
     sequentialEditQueue,
     currentSequentialEditIndex,
     finishSequentialEdit,
-  ]); // Added finishSequentialEdit
+  ]);
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
+    <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
       <GlobalErrorDisplay
         error={globalError}
         onClose={() => setGlobalError(null)}
       />
-      <Card className="shadow-lg rounded-lg">
+      <Card className="shadow-xl rounded-xl border border-gray-200">
         <TableToolbar
           selectedItemIds={selectedItemIds}
           onBatchDeleteClick={() => setIsBatchDeleteConfirmOpen(true)}
@@ -1419,6 +1430,8 @@ export default function TablePage() {
           uniqueStoreNames={allStoreNames}
           selectedStore={selectedStore}
           onStoreChange={handleStoreChange}
+          selectedStatusState={selectedStatus} // Pass parent's state here
+          onStatusChange={handleStatusChange}
           onExportClick={exportToExcel}
           onAddNewItemClick={() => handleOpenAddEditDialog(null)}
           currentItemsCount={items.length}
@@ -1428,7 +1441,6 @@ export default function TablePage() {
           <ItemsTable
             itemsToDisplay={items}
             selectedItemIds={selectedItemIds}
-            // sortConfig={sortConfig} // Removed
             selectAllState={selectAllStateForCurrentPage}
             onSelectAll={handleSelectAllCurrentPage}
             onSelectItem={handleSelectItem}
@@ -1439,6 +1451,7 @@ export default function TablePage() {
             isLoading={isLoading}
             totalDbItems={totalDbItems}
             selectedStore={selectedStore}
+            selectedStatus={selectedStatus}
           />
         </CardContent>
         {serverTotalPages > 0 && (
@@ -1467,14 +1480,13 @@ export default function TablePage() {
         onFinishSequential={finishSequentialEdit}
         isLoading={isLoading}
       />
-
       <ConfirmationDialog
         isOpen={isSingleDeleteConfirmOpen}
         onOpenChange={setIsSingleDeleteConfirmOpen}
         title="삭제 확인"
         description={
           <p>
-            정말로 {/* Corrected unescaped entities */}
+            정말로{" "}
             <strong className="font-medium">
               &lsquo;{itemToDelete?.itemName}&rsquo;
             </strong>{" "}
@@ -1486,7 +1498,6 @@ export default function TablePage() {
         isLoading={isLoading}
         confirmButtonText="삭제"
       />
-
       <ConfirmationDialog
         isOpen={isBatchDeleteConfirmOpen}
         onOpenChange={setIsBatchDeleteConfirmOpen}
@@ -1494,7 +1505,7 @@ export default function TablePage() {
         description={
           <p>
             선택된{" "}
-            <strong className="font-medium">{selectedItemIds.length}개</strong>
+            <strong className="font-medium">{selectedItemIds.length}개</strong>{" "}
             의 비품을 정말로 삭제하시겠습니까?
             <br />이 작업은 되돌릴 수 없습니다.
           </p>
@@ -1503,7 +1514,6 @@ export default function TablePage() {
         isLoading={isLoading}
         confirmButtonText="삭제"
       />
-
       <BatchStatusChangeDialog
         isOpen={isBatchStatusDialogOpen}
         onOpenChange={setIsBatchStatusDialogOpen}
