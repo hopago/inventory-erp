@@ -1326,7 +1326,7 @@ export default function TablePage() {
               `ID ${originalId} 삭제 실패 응답 (${result.value.status}):`,
               errorJson
             );
-          } catch (e) {
+          } catch {
             console.error(
               `ID ${originalId} 삭제 실패 응답 (파싱 불가, 상태 ${result.value.status}):`,
               result.value.statusText
@@ -1391,7 +1391,7 @@ export default function TablePage() {
               `ID ${originalId} 상태변경 실패 응답 (${result.value.status}):`,
               errorJson
             );
-          } catch (e) {
+          } catch {
             console.error(
               `ID ${originalId} 상태변경 실패 응답 (파싱 불가, 상태 ${result.value.status}):`,
               result.value.statusText
