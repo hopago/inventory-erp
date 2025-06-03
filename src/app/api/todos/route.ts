@@ -1,331 +1,258 @@
 // app/api/todos/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, TodoPriority } from '@prisma/client';
+import { TodoPriority, Prisma } from '@prisma/client'; // Import Prisma for types
 import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+/**
+ * Creates a standardized error response.
+ * @param message The error message.
+ * @param status The HTTP status code.
+ * @returns A NextResponse JSON object.
+ */
+// function errorResponse(message: string, status = 400) {
+//     const relevantMessage = isDev ? message : "An error occurred while processing your request.";
+//     const payload = { error: relevantMessage, success: false }; // Added success: false for consistency
+//     return NextResponse.json(payload, { status });
+// }
 
-// Todo 생성/수정을 위한 스키마 정의
-const todoSchema = z.object({
-    text: z.string().min(1, '할 일 내용을 입력해주세요.').max(200, '할 일 내용은 200자 이하로 입력해주세요.'),
-    priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).default('MEDIUM'),
-    completed: z.boolean().optional().default(false),
-    userId: z.number().optional().nullable(),
-});
+type RouteParams = {
+    id: string; // Assuming the ID is a string, adjust if it's a number
+};
 
-const todoUpdateSchema = z.object({
-    text: z.string().min(1).max(200).optional(),
-    priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
-    completed: z.boolean().optional(),
-    userId: z.number().optional().nullable(),
-});
-
-// 페이지네이션 스키마
+// Zod schema for pagination and filtering parameters
 const paginationSchema = z.object({
-    page: z.coerce.number().min(1).default(1),
-    limit: z.coerce.number().min(1).max(100).default(10),
-    userId: z.coerce.number().optional(),
-    completed: z.enum(['true', 'false']).optional(),
-    priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
-    search: z.string().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    userId: z.coerce.number().int().optional(), // Assuming userId in DB is Int
+    completed: z.enum(['true', 'false']).optional().transform(val => val === 'true' ? true : val === 'false' ? false : undefined),
+    priority: z.nativeEnum(TodoPriority).optional(),
+    search: z.string().trim().optional(),
+    // You could add sortBy and sortOrder here for more dynamic sorting
+    // sortBy: z.enum(['createdAt', 'priority', 'deadline']).optional().default('priority'),
+    // sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
 
-// 에러 응답 헬퍼 함수
-function errorResponse(message: string, status: number = 400) {
-    return NextResponse.json({ error: message }, { status });
+// Helper for error responses (ensure this is defined or imported)
+const isDev = process.env.NODE_ENV === 'development';
+function errorResponse(message: string, status = 400) {
+    const relevantMessage = isDev ? message : "An error occurred while processing your request.";
+    const payload = { error: relevantMessage };
+    return NextResponse.json(payload, { status });
 }
 
-// 성공 응답 헬퍼 함수
-interface Meta {
-    currentPage?: number;
-    totalPages?: number;
-    totalCount?: number;
-    limit?: number;
-    hasPrevPage?: boolean;
-    hasNextPage?: boolean;
-}
-
-interface SuccessResponse<T> {
+/**
+ * Interface for a standardized success response.
+ */
+interface SuccessResponseData<T> {
     data: T;
     success: true;
-    meta?: Meta;
+    meta?: object; // Optional meta field
 }
 
-function successResponse<T>(data: T, status: number = 200, meta?: Meta): NextResponse<SuccessResponse<T>> {
-    return NextResponse.json<SuccessResponse<T>>({
-        data,
-        success: true,
-        ...(meta && { meta })
-    }, { status });
+/**
+ * Creates a standardized success response.
+ * @param data The data to be returned.
+ * @param status The HTTP status code.
+ * @param meta Optional metadata.
+ * @returns A NextResponse JSON object.
+ */
+function successResponse<T>(data: T, status = 200, meta?: object) {
+    const responsePayload: SuccessResponseData<T> = { data, success: true };
+    if (meta) {
+        responsePayload.meta = meta;
+    }
+    return NextResponse.json(responsePayload, { status });
 }
+//#endregion
 
-// GET: 페이지네이션이 적용된 Todo 조회
+// Zod schema for updating a Todo
+const todoUpdateSchema = z.object({
+    text: z.string().trim().min(1).optional(),
+    completed: z.boolean().optional(),
+    priority: z.nativeEnum(TodoPriority).optional(),
+    deadline: z.string().datetime().optional().nullable(),
+    userId: z.coerce.number().int().optional().nullable(),
+});
+
+// GET: Fetch a list of Todos with pagination, filtering, and search
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
 
-        // Prepare parameters for validation
-        const paramsToValidate: {
-            page?: string | null;
-            limit?: string | null;
-            userId?: string | null;
-            completed?: string | null;
-            priority?: string | null;
-            search?: string | null;
-        } = {
-            page: searchParams.get('page'),
-            limit: searchParams.get('limit'),
-        };
+        const paramsToValidate: Record<string, string | undefined> = {};
+        searchParams.forEach((value, key) => {
+            paramsToValidate[key] = value;
+        });
 
-        const userIdParam = searchParams.get('userId');
-        if (userIdParam !== null) {
-            paramsToValidate.userId = userIdParam;
-        }
-
-        const completedParam = searchParams.get('completed');
-        if (completedParam !== null) {
-            paramsToValidate.completed = completedParam;
-        }
-
-        const priorityParam = searchParams.get('priority');
-        if (priorityParam !== null) {
-            paramsToValidate.priority = priorityParam;
-        }
-
-        const searchParam = searchParams.get('search');
-        if (searchParam !== null) {
-            paramsToValidate.search = searchParam;
-        }
-
-        // 페이지네이션 파라미터 검증
         const validationResult = paginationSchema.safeParse(paramsToValidate);
 
         if (!validationResult.success) {
             return errorResponse(
-                validationResult.error.errors.map(err => err.message).join(', ')
+                validationResult.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', '),
+                400
             );
         }
 
         const { page, limit, userId, completed, priority, search } = validationResult.data;
 
-        // ... rest of your GET handler logic remains the same
-
-        // 필터 조건 구성
-        const where: {
-            userId?: number;
-            completed?: boolean;
-            priority?: TodoPriority;
-            text?: { contains: string; mode: 'insensitive' };
-        } = {};
-
-        if (userId) { // userId here would be number | undefined after validation
+        // Construct 'where' object for Prisma query
+        const where: Prisma.TodoWhereInput = {};
+        if (userId !== undefined) {
             where.userId = userId;
         }
-
-        if (completed !== undefined) { // completed here would be 'true' | 'false' | undefined
-            where.completed = completed === 'true';
+        if (completed !== undefined) {
+            where.completed = completed;
         }
-
-        if (priority && ['HIGH', 'MEDIUM', 'LOW'].includes(priority)) { // priority here would be 'HIGH' | 'MEDIUM' | 'LOW' | undefined
-            where.priority = priority as TodoPriority;
+        if (priority) {
+            where.priority = priority;
         }
-
-        if (search) { // search here would be string | undefined
+        if (search) {
             where.text = {
                 contains: search,
-                mode: 'insensitive'
+                mode: 'insensitive', // Case-insensitive search
             };
         }
+        // Example: Add deadline-based filtering if needed in the future
+        // if (validationResult.data.deadlineBefore) {
+        //   where.deadline = { ...where.deadline, lte: validationResult.data.deadlineBefore };
+        // }
 
-        // 전체 개수 조회
+        // Fetch total count of todos matching the criteria
         const totalCount = await prisma.todo.count({ where });
 
-        // 페이지네이션 계산
-        const totalPages = Math.ceil(totalCount / limit); // limit will have its default from schema if not provided
-        const skip = (page - 1) * limit; // page will have its default from schema if not provided
+        // Calculate pagination metadata
+        const totalPages = Math.ceil(totalCount / limit);
+        const skip = (page - 1) * limit;
 
-        // Todo 조회
+        // Define sorting order
+        const orderBy: Prisma.TodoOrderByWithRelationInput[] = [
+            { priority: 'asc' }, // Or based on validationResult.data.sortBy/sortOrder
+            { createdAt: 'desc' },
+        ];
+        // Example: if (validationResult.data.sortByDeadline) orderBy.unshift({ deadline: validationResult.data.sortByDeadline });
+
+
+        // Fetch todos with pagination, filtering, sorting, and include user details
         const todos = await prisma.todo.findMany({
             where,
             include: {
-                user: {
+                user: { // Include related user data
                     select: {
                         id: true,
                         username: true,
                         role: true,
-                    }
-                }
+                    },
+                },
             },
-            orderBy: [
-                { priority: 'asc' },
-                { createdAt: 'desc' },
-            ],
+            orderBy,
             skip,
             take: limit,
         });
 
+        // Construct the meta object for the response
         const meta = {
             currentPage: page,
-            totalPages,
-            totalCount,
-            limit,
-            hasPrevPage: page > 1,
+            totalPages: totalPages,
+            totalCount: totalCount,
+            limit: limit,
             hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
         };
 
-        return successResponse(todos, 200, meta);
+        // Return success response with todos and meta
+        return NextResponse.json({ data: todos, success: true, meta });
+
     } catch (error) {
         console.error('GET /api/todos 오류:', error);
-        return errorResponse('Todo 목록을 불러오는 중 오류가 발생했습니다.', 500);
+        const errorMessage = error instanceof Error && isDev ? error.message : 'Todo 목록을 불러오는 중 오류가 발생했습니다.';
+        return errorResponse(errorMessage, 500);
     }
 }
 
-// POST: 새 Todo 생성
-export async function POST(request: NextRequest) {
+
+/* -------------------------------------------------------------------------- */
+/* PUT /api/todos/[id]                                                        */
+/* -------------------------------------------------------------------------- */
+export async function PUT(
+    req: NextRequest,
+    // Corrected: params is an object, not a Promise
+    { params }: { params: Promise<RouteParams> }
+) {
     try {
-        const body = await request.json();
-
-        // 요청 데이터 유효성 검사
-        const validationResult = todoSchema.safeParse(body);
-        if (!validationResult.success) {
-            return errorResponse(
-                validationResult.error.errors.map(err => err.message).join(', ')
-            );
-        }
-
-        const { text, priority, completed, userId } = validationResult.data;
-
-        // 사용자 ID가 제공된 경우 해당 사용자가 존재하는지 확인
-        if (userId) {
-            const userExists = await prisma.user.findUnique({
-                where: { id: userId }
-            });
-
-            if (!userExists) {
-                return errorResponse('존재하지 않는 사용자입니다.');
-            }
-        }
-
-        // Todo 생성
-        const newTodo = await prisma.todo.create({
-            data: {
-                text,
-                priority: priority as TodoPriority,
-                completed,
-                userId,
-            },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        username: true,
-                        role: true,
-                    }
-                }
-            }
-        });
-
-        return successResponse(newTodo, 201);
-    } catch (error) {
-        console.error('POST /api/todos 오류:', error);
-        return errorResponse('Todo 생성 중 오류가 발생했습니다.', 500);
-    }
-}
-
-// PUT: Todo 수정
-export async function PUT(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+        // Corrected: Access id directly from params, no await needed
+        const { id } = await params;
 
         if (!id) {
-            return errorResponse('Todo ID가 필요합니다.');
+            return errorResponse("Todo ID is required in path.", 400);
         }
 
-        const body = await request.json();
+        const body: unknown = await req.json();
+        const validation = todoUpdateSchema.safeParse(body);
 
-        // 요청 데이터 유효성 검사
-        const validationResult = todoUpdateSchema.safeParse(body);
-        if (!validationResult.success) {
-            return errorResponse(
-                validationResult.error.errors.map(err => err.message).join(', ')
-            );
+        if (!validation.success) {
+            const msg = validation.error.errors
+                .map((err) => `${err.path.join(".")}: ${err.message}`)
+                .join(", ");
+            return errorResponse(msg, 400); // Changed status to 400 for validation errors
+        }
+        const data = validation.data;
+
+        const existing = await prisma.todo.findUnique({ where: { id } });
+        if (!existing) {
+            return errorResponse("존재하지 않는 Todo입니다.", 404);
         }
 
-        const updateData = validationResult.data;
-
-        // 기존 Todo 존재 여부 확인
-        const existingTodo = await prisma.todo.findUnique({
-            where: { id }
-        });
-
-        if (!existingTodo) {
-            return errorResponse('존재하지 않는 Todo입니다.', 404);
-        }
-
-        // 사용자 ID가 변경되는 경우 해당 사용자 존재 여부 확인
-        if (updateData.userId !== undefined && updateData.userId !== null) {
-            const userExists = await prisma.user.findUnique({
-                where: { id: updateData.userId }
-            });
-
+        if (data.userId !== undefined && data.userId !== null) {
+            const userExists = await prisma.user.findUnique({ where: { id: data.userId } });
             if (!userExists) {
-                return errorResponse('존재하지 않는 사용자입니다.');
+                return errorResponse("존재하지 않는 사용자입니다.", 400); // Changed status to 400
             }
         }
 
-        // Todo 업데이트
-        const updatedTodo = await prisma.todo.update({
+        const updated = await prisma.todo.update({
             where: { id },
-            data: {
-                ...updateData,
-                priority: updateData.priority as TodoPriority | undefined,
-            },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        username: true,
-                        role: true,
-                    }
-                }
-            }
+            data,
+            include: { user: { select: { id: true, username: true, role: true } } },
         });
 
-        return successResponse(updatedTodo);
-    } catch (error) {
-        console.error('PUT /api/todos 오류:', error);
-        return errorResponse('Todo 수정 중 오류가 발생했습니다.', 500);
+        return successResponse(updated);
+    } catch (e) {
+        console.error("PUT /api/todos/[id] 오류:", e);
+        if (e instanceof z.ZodError && isDev) { // Only show detailed Zod errors in dev
+            return errorResponse(e.errors.map((x) => x.message).join(", "), 400);
+        }
+        const errorMessage = e instanceof Error && isDev ? e.message : "Todo 수정 중 오류가 발생했습니다.";
+        return errorResponse(errorMessage, 500);
     }
 }
 
-// DELETE: Todo 삭제
-export async function DELETE(request: NextRequest) {
+/* -------------------------------------------------------------------------- */
+/* DELETE /api/todos/[id]                                                     */
+/* -------------------------------------------------------------------------- */
+export async function DELETE(
+    _req: NextRequest,
+    // Corrected: params is an object, not a Promise
+    { params }: { params: Promise<RouteParams> }
+) {
     try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+        // Corrected: Access id directly from params, no await needed
+        const { id } = await params;
 
         if (!id) {
-            return errorResponse('Todo ID가 필요합니다.');
+            return errorResponse("Todo ID is required in path.", 400);
         }
 
-        // 기존 Todo 존재 여부 확인
-        const existingTodo = await prisma.todo.findUnique({
-            where: { id }
-        });
-
-        if (!existingTodo) {
-            return errorResponse('존재하지 않는 Todo입니다.', 404);
+        const existing = await prisma.todo.findUnique({ where: { id } });
+        if (!existing) {
+            return errorResponse("존재하지 않는 Todo입니다.", 404);
         }
 
-        // Todo 삭제
-        await prisma.todo.delete({
-            where: { id }
-        });
-
-        return successResponse({ message: 'Todo가 성공적으로 삭제되었습니다.' });
-    } catch (error) {
-        console.error('DELETE /api/todos 오류:', error);
-        return errorResponse('Todo 삭제 중 오류가 발생했습니다.', 500);
+        await prisma.todo.delete({ where: { id } });
+        return NextResponse.json({ success: true, message: "Todo가 성공적으로 삭제되었습니다." });
+    } catch (e) {
+        console.error("DELETE /api/todos/[id] 오류:", e);
+        const errorMessage = e instanceof Error && isDev ? e.message : "Todo 삭제 중 오류가 발생했습니다.";
+        return errorResponse(errorMessage, 500);
     }
 }

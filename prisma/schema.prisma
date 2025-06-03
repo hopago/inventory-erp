@@ -41,6 +41,7 @@ model Todo {
   text        String
   completed   Boolean      @default(false) @map("is_completed")
   priority    TodoPriority @default(MEDIUM) @map("todo_priority")
+  deadline    DateTime?    // Added: Optional deadline field
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   userId      Int?         // Optional: Foreign key to User

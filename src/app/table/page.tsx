@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GlobalErrorDisplay } from "../components/global-error-display";
+import { Toaster, toast } from "sonner";
 
 // Define ProgressStatus type based on your Prisma schema (enum keys)
 type ProgressStatus = "UNCONFIRMED" | "IN_PROGRESS" | "COMPLETED";
@@ -86,30 +87,28 @@ const translateProgressStatus = (status: ProgressStatus): string => {
   }
 };
 
-// Helper to get badge variant based on status
-const getProgressStatusVariant = (
-  status: ProgressStatus
-): "default" | "secondary" | "outline" | "destructive" => {
+// Helper to get Tailwind CSS classes for status badges
+const getDynamicStatusBadgeStyles = (status: ProgressStatus): string => {
   switch (status) {
     case "UNCONFIRMED":
-      return "outline";
+      return "bg-slate-100 text-slate-700 border border-slate-300";
     case "IN_PROGRESS":
-      return "default";
+      return "bg-amber-100 text-amber-800 border border-amber-300";
     case "COMPLETED":
-      return "secondary";
+      return "bg-emerald-100 text-emerald-800 border border-emerald-300";
     default:
-      return "outline";
+      return "bg-gray-100 text-gray-700 border border-gray-300"; // Fallback
   }
 };
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
-const ALL_STATUSES_VALUE = "ALL_STATUSES_FILTER_VALUE"; // Special non-empty value for "all statuses"
+const ALL_STATUSES_VALUE = "ALL_STATUSES_FILTER_VALUE";
 
 const PROGRESS_STATUS_OPTIONS: {
   value: ProgressStatus | typeof ALL_STATUSES_VALUE;
   label: string;
 }[] = [
-  { value: ALL_STATUSES_VALUE, label: "전체 상태" }, // Changed value from ""
+  { value: ALL_STATUSES_VALUE, label: "전체 상태" },
   { value: "UNCONFIRMED", label: translateProgressStatus("UNCONFIRMED") },
   { value: "IN_PROGRESS", label: translateProgressStatus("IN_PROGRESS") },
   { value: "COMPLETED", label: translateProgressStatus("COMPLETED") },
@@ -123,8 +122,8 @@ interface TableToolbarProps {
   uniqueStoreNames: string[];
   selectedStore: string;
   onStoreChange: (value: string) => void;
-  selectedStatusState: ProgressStatus | ""; // This is the parent's state value ("" for all)
-  onStatusChange: (value: ProgressStatus | "") => void; // This callback expects "" for all
+  selectedStatusState: ProgressStatus | "";
+  onStatusChange: (value: ProgressStatus | "") => void;
   onExportClick: () => void;
   onAddNewItemClick: () => void;
   currentItemsCount: number;
@@ -139,7 +138,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
   uniqueStoreNames,
   selectedStore,
   onStoreChange,
-  selectedStatusState, // Renamed prop to avoid confusion with internal select value
+  selectedStatusState,
   onStatusChange,
   onExportClick,
   onAddNewItemClick,
@@ -147,19 +146,19 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
   totalFilteredItemsCount,
 }) => {
   return (
-    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 md:p-6 border-b bg-slate-50 rounded-t-lg">
+    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 md:p-6 border-b border-slate-200 bg-slate-50 rounded-t-lg">
       <div className="flex items-center space-x-3">
-        <Package className="h-7 w-7 text-blue-600" />
+        <Package className="h-7 w-7 text-indigo-600" />
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-800">
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">
             비품 관리 시스템
           </h1>
-          <Badge variant="outline" className="mt-1 text-xs text-gray-600">
+          <span className="mt-1 text-xs text-slate-600 bg-slate-200 border border-slate-300 px-2 py-0.5 rounded-full inline-block">
             {selectedItemIds.length > 0
               ? `${selectedItemIds.length}개 선택됨 / `
               : ""}
             {currentItemsCount}개 표시 (총 {totalFilteredItemsCount}개 일치)
-          </Badge>
+          </span>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -167,9 +166,9 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
           <>
             <Button
               onClick={onBatchDeleteClick}
-              variant="destructive"
+              variant="destructive" // ShadCN destructive variant will use appropriate red
               size="sm"
-              className="h-9 text-sm shadow-sm hover:shadow-md transition-shadow"
+              className="h-9 text-sm shadow-sm hover:shadow-md transition-shadow bg-rose-600 hover:bg-rose-700 text-white"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               선택 삭제 ({selectedItemIds.length})
@@ -178,7 +177,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
               onClick={onBatchStatusChangeClick}
               variant="outline"
               size="sm"
-              className="h-9 text-sm border-purple-500 text-purple-600 hover:bg-purple-50 hover:text-purple-700 shadow-sm hover:shadow-md transition-shadow"
+              className="h-9 text-sm border-violet-500 text-violet-600 hover:bg-violet-50 hover:text-violet-700 shadow-sm hover:shadow-md transition-shadow"
             >
               <Settings2 className="h-4 w-4 mr-2" />
               상태 변경 ({selectedItemIds.length})
@@ -187,7 +186,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
               onClick={onSequentialEditClick}
               variant="outline"
               size="sm"
-              className="h-9 text-sm border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 shadow-sm hover:shadow-md transition-shadow"
+              className="h-9 text-sm border-teal-500 text-teal-600 hover:bg-teal-50 hover:text-teal-700 shadow-sm hover:shadow-md transition-shadow"
             >
               <PlayCircle className="h-4 w-4 mr-2" />
               연속 수정 ({selectedItemIds.length})
@@ -202,14 +201,14 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
           }
           onValueChange={(value) => {
             if (value === ALL_STATUSES_VALUE) {
-              onStatusChange(""); // Notify parent with "" for "all statuses"
+              onStatusChange("");
             } else {
               onStatusChange(value as ProgressStatus);
             }
           }}
         >
-          <SelectTrigger className="w-full md:w-[150px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-            <Filter className="h-3 w-3 mr-2 text-gray-500" />
+          <SelectTrigger className="w-full md:w-[150px] h-9 text-sm rounded-md bg-white border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm text-slate-700">
+            <Filter className="h-3 w-3 mr-2 text-slate-500" />
             <SelectValue placeholder="상태 필터" />
           </SelectTrigger>
           <SelectContent>
@@ -221,13 +220,13 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
           </SelectContent>
         </Select>
         <Select
-          value={selectedStore || "ALL_STORES"} // "ALL_STORES" is not an empty string, so it's fine
+          value={selectedStore || "ALL_STORES"}
           onValueChange={(value) =>
             onStoreChange(value === "ALL_STORES" ? "" : value)
           }
         >
-          <SelectTrigger className="w-full md:w-[180px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-            <Store className="h-3 w-3 mr-2 text-gray-500" />
+          <SelectTrigger className="w-full md:w-[180px] h-9 text-sm rounded-md bg-white border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm text-slate-700">
+            <Store className="h-3 w-3 mr-2 text-slate-500" />
             <SelectValue placeholder="매장 선택" />
           </SelectTrigger>
           <SelectContent>
@@ -242,14 +241,14 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
         <Button
           onClick={onExportClick}
           variant="outline"
-          className="h-9 text-sm border-gray-300 hover:bg-gray-100 shadow-sm hover:shadow-md transition-shadow"
+          className="h-9 text-sm border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm hover:shadow-md transition-shadow"
         >
           <Download className="h-4 w-4 mr-2" />
           Excel (현재 페이지)
         </Button>
         <Button
           onClick={onAddNewItemClick}
-          className="h-9 text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-shadow"
+          className="h-9 text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-shadow"
         >
           <Plus className="h-4 w-4 mr-2" />새 비품 추가
         </Button>
@@ -269,7 +268,7 @@ interface ItemsTableProps {
   onEditItem: (item: Item) => void;
   onDeleteItem: (item: Item) => void;
   isLoading: boolean;
-  totalDbItems: number; // Renamed from totalFilteredItemsCount for clarity in this component
+  totalDbItems: number;
   selectedStore: string;
   selectedStatus: ProgressStatus | "";
 }
@@ -285,27 +284,22 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
   onEditItem,
   onDeleteItem,
   isLoading,
-  totalDbItems, // This now refers to the total items matching the current filters from the server
+  totalDbItems,
   selectedStore,
   selectedStatus,
 }) => {
   if (isLoading && itemsToDisplay.length === 0) {
     return (
-      <div className="text-center p-10 text-gray-500 min-h-[300px] flex items-center justify-center">
+      <div className="text-center p-10 text-slate-500 min-h-[300px] flex items-center justify-center">
         <p>데이터를 불러오는 중입니다...</p>
       </div>
     );
   }
-  // This condition uses totalDbItems, which should be the count of items *after* server-side filtering.
-  // If filters are applied, totalDbItems should reflect the filtered total.
+
   if (!isLoading && itemsToDisplay.length === 0) {
     let message = "현재 페이지에 표시할 비품이 없습니다.";
-    // This message logic depends on totalDbItems correctly reflecting the server-filtered count.
-    // If totalDbItems is 0 because of filters, the messages below are appropriate.
-    // If totalDbItems is > 0 but current page is empty (e.g. navigated past last page of filtered results),
-    // that's a different scenario, though current pagination logic tries to prevent this.
     if (totalDbItems === 0) {
-      // This implies no items match the filters *in the entire database*
+      // This condition means no items in DB AT ALL that match filters, or no items at all
       if (selectedStore && selectedStatus) {
         message = `'${selectedStore}' 매장의 '${
           PROGRESS_STATUS_OPTIONS.find((opt) => opt.value === selectedStatus)
@@ -321,9 +315,27 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
       } else {
         message = "등록된 비품이 없습니다. 새 비품을 추가해보세요.";
       }
+    } else {
+      // This means items exist in DB, but not on THIS page (e.g. due to pagination with filters)
+      if (selectedStore && selectedStatus) {
+        message = `현재 페이지에는 '${selectedStore}' 매장의 '${
+          PROGRESS_STATUS_OPTIONS.find((opt) => opt.value === selectedStatus)
+            ?.label || selectedStatus
+        }' 상태 비품이 없습니다. 다른 페이지를 확인하거나 필터를 조정해주세요.`;
+      } else if (selectedStore) {
+        message = `현재 페이지에는 '${selectedStore}' 매장 비품이 없습니다. 다른 페이지를 확인하거나 필터를 조정해주세요.`;
+      } else if (selectedStatus) {
+        message = `현재 페이지에는 '${
+          PROGRESS_STATUS_OPTIONS.find((opt) => opt.value === selectedStatus)
+            ?.label || selectedStatus
+        }' 상태 비품이 없습니다. 다른 페이지를 확인하거나 필터를 조정해주세요.`;
+      } else {
+        message =
+          "현재 페이지에 표시할 비품이 없습니다. 다른 페이지를 확인해주세요.";
+      }
     }
     return (
-      <div className="text-center p-10 text-gray-500 min-h-[300px] flex items-center justify-center">
+      <div className="text-center p-10 text-slate-500 min-h-[300px] flex items-center justify-center">
         <p>{message}</p>
       </div>
     );
@@ -342,51 +354,51 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("id")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>ID {getSortIcon("id")}</>
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("storeName")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>매장명 {getSortIcon("storeName")}</>
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("itemName")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>품목명 {getSortIcon("itemName")}</>
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("quantity")}
-            className="text-right cursor-pointer hover:bg-muted/50"
+            className="text-right cursor-pointer hover:bg-slate-100"
           >
             <>수량 {getSortIcon("quantity")}</>
           </TableHead>
           <TableHead>규격</TableHead>
           <TableHead
             onClick={() => onRequestSort("deliveryMethod")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>배송 {getSortIcon("deliveryMethod")}</>
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("progressStatus")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>상태 {getSortIcon("progressStatus")}</>
           </TableHead>
           <TableHead>비고</TableHead>
           <TableHead
             onClick={() => onRequestSort("createdAt")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>등록일 {getSortIcon("createdAt")}</>
           </TableHead>
           <TableHead
             onClick={() => onRequestSort("updatedAt")}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:bg-slate-100"
           >
             <>수정일 {getSortIcon("updatedAt")}</>
           </TableHead>
@@ -400,6 +412,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
             data-state={
               selectedItemIds.includes(item.id) ? "selected" : undefined
             }
+            className="hover:bg-slate-50 data-[state=selected]:bg-indigo-50"
           >
             <TableCell>
               <Checkbox
@@ -408,49 +421,55 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
                 aria-label={`${item.itemName} 선택`}
               />
             </TableCell>
-            <TableCell className="font-mono text-gray-700">{item.id}</TableCell>
-            <TableCell className="font-medium text-gray-900">
+            <TableCell className="font-mono text-slate-700">
+              {item.id}
+            </TableCell>
+            <TableCell className="font-medium text-slate-800">
               {item.storeName}
             </TableCell>
-            <TableCell>{item.itemName}</TableCell>
+            <TableCell className="text-slate-700">{item.itemName}</TableCell>
             <TableCell className="text-right">
-              <Badge variant="outline" className="font-normal text-sm">
+              <Badge className="font-normal text-sm bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-1">
                 {item.quantity}
               </Badge>
             </TableCell>
-            <TableCell>{item.specification}</TableCell>
+            <TableCell className="text-slate-700">
+              {item.specification}
+            </TableCell>
             <TableCell>
               <Badge
-                variant={
-                  item.deliveryMethod === "DIRECT" ? "default" : "secondary"
-                }
-                className="capitalize text-xs"
+                className={`capitalize text-xs px-2.5 py-1 ${
+                  item.deliveryMethod === "DIRECT"
+                    ? "bg-sky-100 text-sky-800 border border-sky-300"
+                    : "bg-purple-100 text-purple-800 border border-purple-300"
+                }`}
               >
                 {item.deliveryMethod === "DIRECT" ? "직접" : "택배"}
               </Badge>
             </TableCell>
             <TableCell>
               <Badge
-                variant={getProgressStatusVariant(item.progressStatus)}
-                className="text-xs"
+                className={`text-xs px-2.5 py-1 ${getDynamicStatusBadgeStyles(
+                  item.progressStatus
+                )}`}
               >
                 {translateProgressStatus(item.progressStatus)}
               </Badge>
             </TableCell>
             <TableCell
-              className="max-w-[150px] truncate"
+              className="max-w-[150px] truncate text-slate-600"
               title={item.notes || ""}
             >
               {item.notes || "-"}
             </TableCell>
-            <TableCell>
+            <TableCell className="text-slate-600">
               {new Date(item.createdAt).toLocaleDateString("ko-KR", {
                 year: "2-digit",
                 month: "2-digit",
                 day: "2-digit",
               })}
             </TableCell>
-            <TableCell>
+            <TableCell className="text-slate-600">
               {new Date(item.updatedAt).toLocaleDateString("ko-KR", {
                 year: "2-digit",
                 month: "2-digit",
@@ -462,21 +481,19 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
                 size="icon"
                 variant="ghost"
                 onClick={() => onEditItem(item)}
-                className="text-blue-600 hover:bg-blue-100 h-8 w-8 p-0"
+                className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 h-8 w-8 p-0"
                 aria-label="Edit item"
               >
-                {" "}
-                <Edit className="h-4 w-4" />{" "}
+                <Edit className="h-4 w-4" />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
                 onClick={() => onDeleteItem(item)}
-                className="text-red-600 hover:bg-red-100 h-8 w-8 p-0"
+                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 h-8 w-8 p-0"
                 aria-label="Delete item"
               >
-                {" "}
-                <Trash2 className="h-4 w-4" />{" "}
+                <Trash2 className="h-4 w-4" />
               </Button>
             </TableCell>
           </TableRow>
@@ -492,7 +509,7 @@ interface PaginationControlsProps {
   onPageChange: (page: number) => void;
   itemsPerPage: number;
   onItemsPerPageChange: (value: number) => void;
-  totalDbItems: number; // Total items in DB matching current filters
+  totalDbItems: number;
 }
 
 const PaginationControls: React.FC<PaginationControlsProps> = ({
@@ -503,7 +520,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   onItemsPerPageChange,
   totalDbItems,
 }) => {
-  if (totalPages <= 0 && totalDbItems <= 0) return null; // Hide if no items or pages
+  if (totalPages <= 0 && totalDbItems <= 0) return null;
 
   const handlePrevious = () => onPageChange(Math.max(1, currentPage - 1));
   const handleNext = () => onPageChange(Math.min(totalPages, currentPage + 1));
@@ -521,16 +538,20 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
     } else if (currentPage > totalPages - maxPagesToShow / 2) {
       startPage = Math.max(1, totalPages - maxPagesToShow + 1);
     } else {
-      // Adjust startPage if endPage was capped by totalPages
       if (endPage === totalPages) {
         startPage = Math.max(1, totalPages - maxPagesToShow + 1);
       } else {
-        // Adjust endPage if startPage was capped by 1
         if (startPage === 1) {
           endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
         }
       }
     }
+  }
+
+  // Ensure startPage and endPage are correctly bounded if totalPages is small
+  if (totalPages > 0 && totalPages < maxPagesToShow) {
+    startPage = 1;
+    endPage = totalPages;
   }
 
   if (totalPages > 0) {
@@ -539,15 +560,11 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
     }
   } else if (totalDbItems > 0 && totalPages === 0) {
     // This case implies totalPages might not have been calculated correctly if totalDbItems > 0
-    // Or it's a single page scenario.
-    // For safety, if totalPages is 0 but there are items, assume 1 page.
-    // However, serverTotalPages should ideally be at least 1 if totalDbItems > 0.
-    // This part of the pagination display might not even show if totalPages is 0 based on the initial null check.
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 p-4 border-t bg-slate-50 rounded-b-lg">
-      <div className="text-sm text-gray-700 mb-2 sm:mb-0">
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-0 p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg">
+      <div className="text-sm text-slate-700 mb-2 sm:mb-0">
         총 {totalDbItems}개 중{" "}
         {totalDbItems > 0
           ? Math.min((currentPage - 1) * itemsPerPage + 1, totalDbItems)
@@ -559,7 +576,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           value={String(itemsPerPage)}
           onValueChange={(value) => onItemsPerPageChange(Number(value))}
         >
-          <SelectTrigger className="w-[80px] h-9 text-sm rounded-md bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+          <SelectTrigger className="w-[80px] h-9 text-sm rounded-md bg-white border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm text-slate-700">
             <SelectValue placeholder="개수" />
           </SelectTrigger>
           <SelectContent>
@@ -570,37 +587,34 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             ))}
           </SelectContent>
         </Select>
-        <span className="text-sm text-gray-700">페이지 당</span>
+        <span className="text-sm text-slate-700">페이지 당</span>
         <div className="flex items-center space-x-1">
           <Button
             variant="outline"
             size="icon"
             onClick={handleFirst}
             disabled={currentPage === 1 || totalPages === 0}
-            className="h-9 w-9 shadow-sm"
+            className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
-            {" "}
-            <ChevronsLeft className="h-4 w-4" />{" "}
+            <ChevronsLeft className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={handlePrevious}
             disabled={currentPage === 1 || totalPages === 0}
-            className="h-9 w-9 shadow-sm"
+            className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
-            {" "}
-            <ChevronLeft className="h-4 w-4" />{" "}
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           {startPage > 1 && (
             <Button
               variant="outline"
               size="icon"
-              onClick={() => onPageChange(startPage - 1)} // Or a more sophisticated jump
-              className="h-9 w-9 shadow-sm"
+              onClick={() => onPageChange(startPage - 1)} // Corrected: This should go to a page, not just "..."
+              className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
             >
-              {" "}
-              ...{" "}
+              ...
             </Button>
           )}
           {pageNumbers.map((number) => (
@@ -609,21 +623,23 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
               variant={currentPage === number ? "default" : "outline"}
               size="icon"
               onClick={() => onPageChange(number)}
-              className="h-9 w-9 shadow-sm"
+              className={`h-9 w-9 shadow-sm ${
+                currentPage === number
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                  : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
             >
-              {" "}
-              {number}{" "}
+              {number}
             </Button>
           ))}
           {endPage < totalPages && (
             <Button
               variant="outline"
               size="icon"
-              onClick={() => onPageChange(endPage + 1)} // Or a more sophisticated jump
-              className="h-9 w-9 shadow-sm"
+              onClick={() => onPageChange(endPage + 1)} // Corrected: This should go to a page
+              className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
             >
-              {" "}
-              ...{" "}
+              ...
             </Button>
           )}
           <Button
@@ -631,20 +647,18 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             size="icon"
             onClick={handleNext}
             disabled={currentPage === totalPages || totalPages === 0}
-            className="h-9 w-9 shadow-sm"
+            className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
-            {" "}
-            <ChevronRight className="h-4 w-4" />{" "}
+            <ChevronRight className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={handleLast}
             disabled={currentPage === totalPages || totalPages === 0}
-            className="h-9 w-9 shadow-sm"
+            className="h-9 w-9 shadow-sm bg-white border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
-            {" "}
-            <ChevronsRight className="h-4 w-4" />{" "}
+            <ChevronsRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -692,11 +706,15 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
   onFinishSequential,
   isLoading,
 }) => {
+  // Ensure Input, Select, Textarea components from "@/components/ui/*"
+  // inherently use Tailwind and will pick up focus ring colors from tailwind.config.js
+  // If not, explicit focus styles like focus:ring-indigo-500 focus:border-indigo-500 would be needed.
+  // Assuming ShadCN components handle this well.
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-lg shadow-xl">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-gray-800">
+      <DialogContent className="max-w-md rounded-lg shadow-xl bg-white">
+        <DialogHeader className="pb-2 border-b border-slate-200">
+          <DialogTitle className="text-lg font-semibold text-slate-800">
             {isSequentialEditMode
               ? `연속 수정 (${(currentSequentialEditIndex ?? 0) + 1}/${
                   sequentialEditQueueLength ?? 0
@@ -711,13 +729,13 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
             placeholder="매장명"
             value={formData.storeName}
             onChange={(e) => onFormDataChange("storeName", e.target.value)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
           />
           <Input
             placeholder="품목명"
             value={formData.itemName}
             onChange={(e) => onFormDataChange("itemName", e.target.value)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
           />
           <Input
             type="number"
@@ -727,13 +745,13 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               onFormDataChange("quantity", parseInt(e.target.value) || 0)
             }
             min="0"
-            className="rounded-md"
+            className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
           />
           <Input
             placeholder="규격"
             value={formData.specification}
             onChange={(e) => onFormDataChange("specification", e.target.value)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
           />
           <Select
             value={formData.deliveryMethod}
@@ -741,13 +759,12 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               onFormDataChange("deliveryMethod", value)
             }
           >
-            <SelectTrigger className="rounded-md">
+            <SelectTrigger className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-slate-700">
               <SelectValue placeholder="배송 방식" />
             </SelectTrigger>
             <SelectContent>
-              {" "}
-              <SelectItem value="DIRECT">직접배송</SelectItem>{" "}
-              <SelectItem value="COURIER">택배출고</SelectItem>{" "}
+              <SelectItem value="DIRECT">직접배송</SelectItem>
+              <SelectItem value="COURIER">택배출고</SelectItem>
             </SelectContent>
           </Select>
           <Select
@@ -756,19 +773,14 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               onFormDataChange("progressStatus", value)
             }
           >
-            <SelectTrigger className="rounded-md">
+            <SelectTrigger className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-slate-700">
               <SelectValue placeholder="진행 상태" />
             </SelectTrigger>
             <SelectContent>
               {PROGRESS_STATUS_OPTIONS.filter(
                 (opt) => opt.value !== ALL_STATUSES_VALUE
               ).map((opt) => (
-                <SelectItem
-                  key={opt.value}
-                  value={
-                    opt.value as ProgressStatus /* Ensure correct type for SelectItem */
-                  }
-                >
+                <SelectItem key={opt.value} value={opt.value as ProgressStatus}>
                   {opt.label}
                 </SelectItem>
               ))}
@@ -778,36 +790,33 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
             placeholder="비고 (선택 사항)"
             value={formData.notes || ""}
             onChange={(e) => onFormDataChange("notes", e.target.value)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
           />
         </div>
-        <DialogFooter className="mt-2 gap-2">
+        <DialogFooter className="mt-2 gap-2 pt-4 border-t border-slate-200 bg-slate-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
           {isSequentialEditMode ? (
             <>
               <Button
                 variant="outline"
                 onClick={onFinishSequential}
-                className="rounded-md"
+                className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-100"
               >
-                {" "}
-                <XCircle className="h-4 w-4 mr-2" /> 연속 수정 중단{" "}
+                <XCircle className="h-4 w-4 mr-2" /> 연속 수정 중단
               </Button>
               <Button
                 variant="outline"
                 onClick={onSkipSequential}
-                className="rounded-md"
+                className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-100"
               >
-                {" "}
-                <SkipForward className="h-4 w-4 mr-2" /> 건너뛰기{" "}
+                <SkipForward className="h-4 w-4 mr-2" /> 건너뛰기
               </Button>
               <Button
                 onClick={onSave}
-                className="bg-green-600 hover:bg-green-700 text-white rounded-md"
+                className="bg-teal-600 hover:bg-teal-700 text-white rounded-md"
                 disabled={isLoading}
               >
-                {" "}
-                <Save className="h-4 w-4 mr-2" />{" "}
-                {isLoading ? "저장 중..." : "저장 후 다음"}{" "}
+                <Save className="h-4 w-4 mr-2" />
+                {isLoading ? "저장 중..." : "저장 후 다음"}
               </Button>
             </>
           ) : (
@@ -815,22 +824,20 @@ const AddEditItemDialog: React.FC<AddEditItemDialogProps> = ({
               <Button
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="rounded-md"
+                className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-100"
               >
-                {" "}
-                취소{" "}
+                취소
               </Button>
               <Button
                 onClick={onSave}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md"
                 disabled={isLoading}
               >
-                {" "}
                 {isLoading
                   ? "저장 중..."
                   : editingItem
                   ? "변경사항 저장"
-                  : "비품 추가"}{" "}
+                  : "비품 추가"}
               </Button>
             </>
           )}
@@ -871,27 +878,34 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-lg shadow-xl">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
+      <DialogContent className="sm:max-w-md rounded-lg shadow-xl bg-white">
+        <DialogHeader className="pb-2 border-b border-slate-200">
+          <DialogTitle className="text-lg font-semibold text-slate-800">
+            {title}
+          </DialogTitle>
         </DialogHeader>
-        <div className="py-4">{description}</div>
-        <DialogFooter className="mt-2">
+        <div className="py-4 text-slate-700">{description}</div>
+        <DialogFooter className="mt-2 pt-4 border-t border-slate-200 bg-slate-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-100"
           >
             취소
           </Button>
           <Button
-            variant={confirmButtonVariant}
+            variant={confirmButtonVariant} // This will correctly apply destructive (red) or default (indigo)
             onClick={onConfirm}
             disabled={isLoading}
-            className="rounded-md"
+            className={`rounded-md ${
+              confirmButtonVariant === "destructive"
+                ? "bg-rose-600 hover:bg-rose-700 text-white"
+                : confirmButtonVariant === "default"
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                : "" // Add other specific overrides if needed
+            }`}
           >
-            {" "}
-            {isLoading ? "처리 중..." : confirmButtonText}{" "}
+            {isLoading ? "처리 중..." : confirmButtonText}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -920,30 +934,31 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-lg shadow-xl">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+      <DialogContent className="sm:max-w-md rounded-lg shadow-xl bg-white">
+        <DialogHeader className="pb-2 border-b border-slate-200">
+          <DialogTitle className="text-lg font-semibold text-slate-800">
             선택 항목 상태 일괄 변경
           </DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-3">
-          <p>
+          <p className="text-slate-700">
             선택된{" "}
-            <strong className="font-medium">{selectedItemIdsCount}개</strong>{" "}
+            <strong className="font-medium text-indigo-600">
+              {selectedItemIdsCount}개
+            </strong>{" "}
             항목의 진행 상태를 변경합니다.
           </p>
           <Select
             value={targetBatchStatus}
             onValueChange={onTargetBatchStatusChange}
           >
-            <SelectTrigger className="rounded-md">
+            <SelectTrigger className="rounded-md border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-slate-700">
               <SelectValue placeholder="변경할 상태 선택" />
             </SelectTrigger>
             <SelectContent>
               {PROGRESS_STATUS_OPTIONS.filter(
                 (opt) => opt.value !== ALL_STATUSES_VALUE
               ).map((opt) => (
-                // Ensure that the value passed to SelectItem is of type ProgressStatus, not the "ALL_STATUSES_VALUE"
                 <SelectItem key={opt.value} value={opt.value as ProgressStatus}>
                   {opt.label}
                 </SelectItem>
@@ -951,21 +966,20 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
             </SelectContent>
           </Select>
         </div>
-        <DialogFooter className="mt-2">
+        <DialogFooter className="mt-2 pt-4 border-t border-slate-200 bg-slate-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="rounded-md"
+            className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-100"
           >
             취소
           </Button>
           <Button
             onClick={onConfirm}
             disabled={isLoading}
-            className="bg-purple-600 hover:bg-purple-700 text-white rounded-md"
+            className="bg-violet-600 hover:bg-violet-700 text-white rounded-md"
           >
-            {" "}
-            {isLoading ? "변경 중..." : "상태 변경"}{" "}
+            {isLoading ? "변경 중..." : "상태 변경"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -981,8 +995,8 @@ export default function TablePage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_OPTIONS[0]);
-  const [totalDbItems, setTotalDbItems] = useState(0); // Total items in DB matching current filters
-  const [serverTotalPages, setServerTotalPages] = useState(0); // Total pages from server for current filters
+  const [totalDbItems, setTotalDbItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Item | null;
     direction: "ascending" | "descending";
@@ -1028,45 +1042,34 @@ export default function TablePage() {
       url += `&sortBy=${sortConfig.key}&sortOrder=${sortConfig.direction}`;
     }
     if (selectedStore) {
-      // This correctly adds storeName if a store is selected
       url += `&storeName=${encodeURIComponent(selectedStore)}`;
     }
     if (selectedStatus) {
-      // This correctly adds status if a status is selected
       url += `&status=${selectedStatus}`;
     }
-
-    // DEBUGGING TIP FOR FILTERS:
-    // 1. Log the final URL to the console:
-    //    console.log("Fetching items with URL:", url);
-    // 2. Open your browser's Developer Tools (Network tab).
-    // 3. Apply a filter on your page.
-    // 4. Check the Network tab for the request to the URL logged above.
-    // 5. Verify:
-    //    a. Are the `storeName` and `status` query parameters present and correct in the request URL?
-    //    b. What is the API's response (payload and status code)? Does the response data reflect the applied filters?
-    //    c. Does `totalItems` in the response reflect the count *after* filtering?
-    // If the URL is correct but the API response isn't filtered, the issue is likely in the backend API logic.
 
     try {
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ error: response.statusText })); // Provide a fallback error object
+          .catch(() => ({ error: response.statusText }));
         throw new Error(
           errorData.error || `데이터 로드 실패 (${response.status})`
         );
       }
       const data = await response.json();
       setItems(data.items || []);
-      setTotalDbItems(data.totalItems || 0); // This should be the total count *after* server-side filtering
-      setServerTotalPages(data.totalPages || 0); // This should be total pages *after* server-side filtering
+      setTotalDbItems(data.totalItems || 0);
+      setServerTotalPages(data.totalPages || 0);
     } catch (error: unknown) {
       const err = error as Error;
       console.error("데이터 로드 실패:", err);
       setGlobalError(err.message || "데이터 로드 중 알 수 없는 오류 발생");
-      setItems([]); // Clear items on error
+      toast.error(
+        err.message || "데이터 로드 중 알 수 없는 오류가 발생했습니다."
+      );
+      setItems([]);
       setTotalDbItems(0);
       setServerTotalPages(0);
     } finally {
@@ -1076,33 +1079,23 @@ export default function TablePage() {
 
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]); // This effect runs when fetchItems is recreated (i.e., its dependencies change)
+  }, [fetchItems]);
 
   useEffect(() => {
-    // This effect fetches all unique store names for the filter dropdown.
-    // It runs once on component mount.
-    // NOTE: Fetching potentially all items (limit=10000) just for store names can be inefficient
-    // if the dataset is very large. Consider a dedicated API endpoint (e.g., /api/stores) if performance becomes an issue.
-    // This is unlikely to be the cause of the main data filtering problem.
     const fetchAllStoresForFilter = async () => {
       try {
-        // Fetch only the storeName field to reduce data transfer, assuming API supports field selection.
-        // If not, the original query is fine but less optimal.
-        const response = await fetch("/api/items?limit=10000&fields=storeName");
+        // Fetch only necessary fields and a large limit to get all unique store names
+        const response = await fetch(
+          "/api/items?limit=100000&fields=storeName"
+        );
         if (response.ok) {
           const data = await response.json();
           if (data.items && Array.isArray(data.items)) {
             const uniqueNames = Array.from(
               new Set(
-                data.items.map(
-                  (
-                    item: {
-                      storeName: string;
-                    } /* Simplified Item for this purpose */
-                  ) => item.storeName
-                )
+                data.items.map((item: { storeName: string }) => item.storeName)
               )
-            ).sort() as string[]; // Ensure string[] type after Set and sort
+            ).sort() as string[];
             setAllStoreNames(uniqueNames);
           }
         } else {
@@ -1116,7 +1109,7 @@ export default function TablePage() {
       }
     };
     fetchAllStoresForFilter();
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
   const requestSort = (key: keyof Item) => {
     let newDirection: "ascending" | "descending" = "ascending";
@@ -1124,32 +1117,32 @@ export default function TablePage() {
       newDirection = "descending";
     }
     setSortConfig({ key, direction: newDirection });
-    setCurrentPage(1); // Reset to first page on sort change
+    setCurrentPage(1);
   };
 
   const getSortIcon = (columnKey: keyof Item): React.JSX.Element => {
     if (sortConfig.key !== columnKey)
       return (
-        <ChevronsUpDown className="h-4 w-4 ml-1 inline-block text-gray-400" />
+        <ChevronsUpDown className="h-4 w-4 ml-1 inline-block text-slate-400" />
       );
     return sortConfig.direction === "ascending" ? (
-      <ChevronUp className="h-4 w-4 ml-1 inline-block text-blue-600" />
+      <ChevronUp className="h-4 w-4 ml-1 inline-block text-indigo-600" />
     ) : (
-      <ChevronDown className="h-4 w-4 ml-1 inline-block text-blue-600" />
+      <ChevronDown className="h-4 w-4 ml-1 inline-block text-indigo-600" />
     );
   };
 
   const handleItemsPerPageChange = (value: number) => {
     setItemsPerPage(value);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   };
   const handleStoreChange = (value: string) => {
     setSelectedStore(value);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   };
   const handleStatusChange = (value: ProgressStatus | "") => {
     setSelectedStatus(value);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   };
 
   const handleSelectAllCurrentPage = (checked: boolean | "indeterminate") => {
@@ -1163,16 +1156,6 @@ export default function TablePage() {
     if (checked === true) setSelectedItemIds((prev) => [...prev, itemId]);
     else setSelectedItemIds((prev) => prev.filter((id) => id !== itemId));
   };
-
-  const isAllCurrentPageSelected = useMemo(() => {
-    if (items.length === 0) return false; // No items to select
-    return items.every((item) => selectedItemIds.includes(item.id));
-  }, [items, selectedItemIds]);
-
-  const isSomeCurrentPageSelected = useMemo(() => {
-    if (items.length === 0 || isAllCurrentPageSelected) return false;
-    return items.some((item) => selectedItemIds.includes(item.id));
-  }, [items, selectedItemIds, isAllCurrentPageSelected]);
 
   const selectAllStateForCurrentPage: boolean | "indeterminate" =
     useMemo(() => {
@@ -1189,34 +1172,42 @@ export default function TablePage() {
     }, [items, selectedItemIds]);
 
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(
-      items.map((item) => ({
-        ID: item.id,
-        매장명: item.storeName,
-        품목명: item.itemName,
-        수량: item.quantity,
-        규격: item.specification,
-        배송방식: item.deliveryMethod === "DIRECT" ? "직접배송" : "택배출고",
-        진행상태: translateProgressStatus(item.progressStatus),
-        비고: item.notes || "",
-        등록일: new Date(item.createdAt).toLocaleDateString("ko-KR", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
-        수정일: new Date(item.updatedAt).toLocaleDateString("ko-KR", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
-      }))
-    );
+    const worksheetData = items.map((item) => ({
+      ID: item.id,
+      매장명: item.storeName,
+      품목명: item.itemName,
+      수량: item.quantity,
+      규격: item.specification,
+      배송방식: item.deliveryMethod === "DIRECT" ? "직접배송" : "택배출고",
+      진행상태: translateProgressStatus(item.progressStatus),
+      비고: item.notes || "",
+      등록일: new Date(item.createdAt).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+      수정일: new Date(item.updatedAt).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+    }));
+
+    if (worksheetData.length === 0) {
+      toast.info(
+        "내보낼 데이터가 없습니다. 현재 페이지에 항목이 있는지 확인해주세요."
+      );
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "비품목록_현재페이지");
-    XLSX.writeFile(
-      workbook,
-      `비품목록_현재페이지_${new Date().toISOString().split("T")[0]}.xlsx`
-    );
+    const fileName = `비품목록_현재페이지_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    toast.success(`'${fileName}'(으)로 현재 페이지 비품 목록을 내보냈습니다.`);
   };
 
   const resetForm = useCallback(() => {
@@ -1236,16 +1227,19 @@ export default function TablePage() {
     setIsSequentialEditMode(false);
     setSequentialEditQueue([]);
     setCurrentSequentialEditIndex(0);
-    setIsAddEditDialogOpen(false); // Close dialog
+    setIsAddEditDialogOpen(false);
     resetForm();
-    setSelectedItemIds([]); // Clear selections after sequential edit is done
+    setSelectedItemIds([]);
   }, [resetForm]);
+
+  const handleFinishSequentialFromDialog = () => {
+    toast.info("연속 수정을 사용자가 중단했습니다.");
+    finishSequentialEdit();
+  };
 
   const handleOpenAddEditDialog = (item: Item | null) => {
     if (isSequentialEditMode) {
-      // If sequential edit is active, opening a dialog for a *different* item (not part of sequence)
-      // should arguably stop the sequence. Or, this path shouldn't be reachable if UI disables individual edit during sequence.
-      // For now, assume finishSequentialEdit is desired if a new non-sequential edit is initiated.
+      // If starting a new single edit while sequential was somehow active, stop sequential.
       finishSequentialEdit();
     }
     if (item) {
@@ -1260,28 +1254,26 @@ export default function TablePage() {
         progressStatus: item.progressStatus,
       });
     } else {
-      resetForm(); // For new item
+      resetForm();
     }
     setIsAddEditDialogOpen(true);
   };
 
   const handleAddEditDialogClose = (isOpen: boolean) => {
     if (!isOpen) {
-      // Dialog is closing
       if (isSequentialEditMode) {
-        // If closing during sequential edit (e.g., via Esc key or overlay click),
-        // treat it as finishing the sequence.
+        toast.info(
+          "연속 수정이 중단되었습니다 (다이얼로그 외부 클릭 또는 ESC)."
+        );
         finishSequentialEdit();
       } else {
-        // Normal dialog close
         setIsAddEditDialogOpen(false);
         resetForm();
       }
     } else {
-      // Dialog is opening
-      // This 'else' branch for isOpen=true might be redundant if dialog is only opened via handleOpenAddEditDialog
+      // This case (isOpen === true) is usually handled by onOpenChange being called by Dialog trigger.
+      // If opening for a new item and not in sequential mode, ensure form is reset.
       if (!editingItem && !isSequentialEditMode) {
-        // If opening for a new item (not edit, not sequential)
         resetForm();
       }
       setIsAddEditDialogOpen(true);
@@ -1298,8 +1290,7 @@ export default function TablePage() {
   const handleSave = async () => {
     setIsLoading(true);
     setGlobalError(null);
-    // Use editingItem from state, which is set correctly for both single and sequential edits
-    const itemToSave = editingItem;
+    const itemToSave = editingItem; // Use editingItem from state at the start of save
     const saveData = { ...formData, quantity: Number(formData.quantity) };
 
     try {
@@ -1311,36 +1302,54 @@ export default function TablePage() {
         body: JSON.stringify(saveData),
       });
       if (response.ok) {
-        // Successfully saved
+        const savedItemName =
+          saveData.itemName || (itemToSave ? itemToSave.itemName : "비품");
         if (isSequentialEditMode) {
-          // If in sequential mode, advance to the next item or finish
           if (currentSequentialEditIndex < sequentialEditQueue.length - 1) {
+            toast.success(
+              `'${savedItemName}' 저장 완료. 다음 항목을 수정합니다.`
+            );
             setCurrentSequentialEditIndex((prev) => prev + 1);
-            // The useEffect for sequential edit will load the next item's data
+            // Form will be updated by useEffect watching currentSequentialEditIndex
           } else {
-            finishSequentialEdit(); // Last item in sequence was saved
+            toast.success(
+              `'${savedItemName}' 저장 완료. 연속 수정을 마칩니다.`
+            );
+            finishSequentialEdit();
           }
         } else {
-          // Normal add/edit mode
+          if (itemToSave) {
+            toast.success(
+              `'${savedItemName}' 비품 정보가 성공적으로 수정되었습니다.`
+            );
+          } else {
+            toast.success(
+              `'${savedItemName}' 새 비품이 성공적으로 추가되었습니다.`
+            );
+          }
           setIsAddEditDialogOpen(false);
           resetForm();
         }
-        await fetchItems(); // Refresh data after successful save
+        await fetchItems(); // Refresh data
       } else {
-        // API returned an error
         const errorData = await response
           .json()
           .catch(() => ({ error: "응답 처리 실패" }));
         console.error("저장 실패:", errorData);
-        setGlobalError(`저장 실패: ${errorData.error || "알 수 없는 오류"}`);
-        // Do not close dialog automatically on error, allow user to correct
-        if (isSequentialEditMode) setIsAddEditDialogOpen(true); // Keep dialog open for sequential
+        const errorMessage = `저장 실패: ${
+          errorData.error || "알 수 없는 오류"
+        }`;
+        setGlobalError(errorMessage);
+        toast.error(errorMessage);
+        if (isSequentialEditMode) setIsAddEditDialogOpen(true); // Keep dialog open on error in sequential
       }
     } catch (error: unknown) {
       const err = error as Error;
       console.error("저장 실패:", err);
-      setGlobalError(`저장 중 오류 발생: ${err.message}`);
-      if (isSequentialEditMode) setIsAddEditDialogOpen(true); // Keep dialog open for sequential
+      const errorMessage = `저장 중 오류 발생: ${err.message}`;
+      setGlobalError(errorMessage);
+      toast.error(errorMessage);
+      if (isSequentialEditMode) setIsAddEditDialogOpen(true); // Keep dialog open on error in sequential
     } finally {
       setIsLoading(false);
     }
@@ -1360,36 +1369,53 @@ export default function TablePage() {
         method: "DELETE",
       });
       if (response.ok) {
+        toast.success(
+          `'${itemToDelete.itemName}' (ID: ${itemToDelete.id}) 비품이 성공적으로 삭제되었습니다.`
+        );
         setSelectedItemIds((prev) =>
           prev.filter((id) => id !== itemToDelete.id)
         );
-        // If the deleted item was the last one on a page > 1, go to previous page
+        // Logic to adjust current page if last item on a page is deleted
         if (items.length === 1 && totalDbItems > 1 && currentPage > 1) {
-          // Check totalDbItems before decrementing page to avoid issues if it was the absolute last item
+          // If total items after delete can still fill previous page or more
           if (totalDbItems - 1 > (currentPage - 2) * itemsPerPage) {
-            setCurrentPage((prev) => prev - 1);
+            setCurrentPage((prev) => Math.max(1, prev - 1)); // Go to prev page, fetch will be triggered by page change
           } else {
-            await fetchItems(); // fetch current page, which might now be empty or have fewer items
+            await fetchItems(); // Refetch current (now possibly empty) page or new last page
           }
         } else {
-          await fetchItems(); // Otherwise, just refresh the current page
+          await fetchItems(); // Default refetch
         }
       } else {
         const errorData = await response
           .json()
           .catch(() => ({ error: "응답 처리 실패" }));
         console.error("삭제 실패:", errorData);
-        setGlobalError(`삭제 실패: ${errorData.error || "알 수 없는 오류"}`);
+        const errorMessage = `삭제 실패: ${
+          errorData.error || "알 수 없는 오류"
+        }`;
+        setGlobalError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error: unknown) {
       const err = error as Error;
       console.error("삭제 실패:", err);
-      setGlobalError(`삭제 중 오류 발생: ${err.message}`);
+      const errorMessage = `삭제 중 오류 발생: ${err.message}`;
+      setGlobalError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsSingleDeleteConfirmOpen(false);
       setItemToDelete(null);
       setIsLoading(false);
     }
+  };
+
+  const openBatchDeleteConfirmDialog = () => {
+    if (selectedItemIds.length === 0) {
+      toast.error("삭제할 항목을 먼저 선택해주세요.");
+      return;
+    }
+    setIsBatchDeleteConfirmOpen(true);
   };
 
   const confirmBatchDelete = async () => {
@@ -1403,19 +1429,31 @@ export default function TablePage() {
       )
     );
 
-    setSelectedItemIds([]); // Clear selection after attempts
+    setSelectedItemIds([]); // Clear selection regardless of outcome
 
     const failedDeletes = results.filter(
       (r) =>
         r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
     );
+    const numSuccessfullyDeleted =
+      currentSelectedItemIds.length - failedDeletes.length;
 
     if (failedDeletes.length > 0) {
-      setGlobalError(
-        `${failedDeletes.length}개 항목 삭제 실패. 자세한 내용은 콘솔을 확인하세요.`
-      );
+      const baseMessage = `${failedDeletes.length}개 항목 삭제 실패.`;
+      const successMessagePart =
+        numSuccessfullyDeleted > 0 ? `${numSuccessfullyDeleted}개는 성공.` : "";
+      const consoleMessage = "자세한 내용은 콘솔을 확인하세요.";
+      const fullErrorMessage = `${baseMessage} ${successMessagePart} ${consoleMessage}`;
+      setGlobalError(fullErrorMessage);
+
+      if (numSuccessfullyDeleted > 0 && failedDeletes.length > 0) {
+        toast.warning(
+          `${numSuccessfullyDeleted}개 삭제 성공, ${failedDeletes.length}개 삭제 실패.`
+        );
+      } else if (failedDeletes.length > 0 && numSuccessfullyDeleted === 0) {
+        toast.error(`${failedDeletes.length}개 항목 삭제에 모두 실패했습니다.`);
+      }
       failedDeletes.forEach(async (result, index) => {
-        // To get the original ID, map index to currentSelectedItemIds (before it was cleared)
         const originalId =
           currentSelectedItemIds[results.findIndex((r) => r === result)]; // Find original ID
         if (result.status === "fulfilled" && !result.value.ok) {
@@ -1436,34 +1474,45 @@ export default function TablePage() {
         }
       });
     } else {
-      setGlobalError(null); // Clear previous errors if all successful
+      setGlobalError(null);
+      toast.success(
+        `${numSuccessfullyDeleted}개 항목이 성공적으로 삭제되었습니다.`
+      );
     }
 
-    // Logic to adjust current page if all items on it were deleted
-    const numDeletedSuccessfully =
-      currentSelectedItemIds.length - failedDeletes.length;
-    if (numDeletedSuccessfully > 0) {
-      // If all items on the current page were selected and successfully deleted,
-      // and it wasn't the first page, try to go to the previous page.
-      const allItemsOnPageSelected =
+    // Page adjustment logic for batch delete
+    if (numSuccessfullyDeleted > 0) {
+      // Check if all items on the current page were selected and successfully deleted
+      const allItemsOnPageWereSelected =
         items.length > 0 &&
         items.every((item) => currentSelectedItemIds.includes(item.id));
+      const numItemsOnPageSuccessfullyDeleted = items.filter(
+        (item) =>
+          currentSelectedItemIds.includes(item.id) &&
+          !failedDeletes.some((fr) => {
+            // This check is a bit complex: find if this item's delete attempt failed
+            const originalId =
+              currentSelectedItemIds[results.findIndex((r) => r === fr)];
+            return item.id === originalId;
+          })
+      ).length;
+
       if (
-        allItemsOnPageSelected &&
-        numDeletedSuccessfully === items.length &&
+        allItemsOnPageWereSelected &&
+        numItemsOnPageSuccessfullyDeleted === items.length &&
         currentPage > 1
       ) {
-        // Check if the new total number of items can support the previous page
+        // If the total items after deletion can still fill the previous page or more
         if (
-          totalDbItems - numDeletedSuccessfully >
+          totalDbItems - numSuccessfullyDeleted >
           (currentPage - 2) * itemsPerPage
         ) {
           setCurrentPage((prev) => Math.max(1, prev - 1));
         } else {
-          await fetchItems(); // Or just refetch the current page (which might become empty or last page)
+          await fetchItems(); // Refetch current page (which might be empty or become the new last page)
         }
       } else {
-        await fetchItems(); // Refresh current page data
+        await fetchItems(); // Default refetch
       }
     }
 
@@ -1474,11 +1523,10 @@ export default function TablePage() {
   const handleOpenBatchStatusChangeDialog = () => {
     if (selectedItemIds.length === 0) {
       setGlobalError("상태를 변경할 항목을 먼저 선택해주세요.");
+      toast.error("상태를 변경할 항목을 먼저 선택해주세요.");
       return;
     }
-    // Default to UNCONFIRMED, or consider using the status of the first selected item,
-    // or leave it blank for user to pick.
-    setTargetBatchStatus("UNCONFIRMED");
+    setTargetBatchStatus("UNCONFIRMED"); // Default to a common status
     setIsBatchStatusDialogOpen(true);
   };
 
@@ -1497,18 +1545,33 @@ export default function TablePage() {
       )
     );
 
-    setSelectedItemIds([]); // Clear selection after attempts
+    setSelectedItemIds([]); // Clear selection
 
     const failedUpdates = results.filter(
       (r) =>
         r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
     );
+    const numSuccessfullyUpdated =
+      currentSelectedItemIds.length - failedUpdates.length;
 
     if (failedUpdates.length > 0) {
-      setGlobalError(
-        `${failedUpdates.length}개 항목 상태 변경 실패. 자세한 내용은 콘솔을 확인하세요.`
-      );
-      failedUpdates.forEach(async (result, index) => {
+      const baseMessage = `${failedUpdates.length}개 항목 상태 변경 실패.`;
+      const successMessagePart =
+        numSuccessfullyUpdated > 0 ? `${numSuccessfullyUpdated}개는 성공.` : "";
+      const consoleMessage = "자세한 내용은 콘솔을 확인하세요.";
+      const fullErrorMessage = `${baseMessage} ${successMessagePart} ${consoleMessage}`;
+      setGlobalError(fullErrorMessage);
+
+      if (numSuccessfullyUpdated > 0 && failedUpdates.length > 0) {
+        toast.warning(
+          `${numSuccessfullyUpdated}개 상태 변경 성공, ${failedUpdates.length}개 실패.`
+        );
+      } else if (failedUpdates.length > 0 && numSuccessfullyUpdated === 0) {
+        toast.error(
+          `${failedUpdates.length}개 항목 상태 변경에 모두 실패했습니다.`
+        );
+      }
+      failedUpdates.forEach(async (result) => {
         const originalId =
           currentSelectedItemIds[results.findIndex((r) => r === result)];
         if (result.status === "fulfilled" && !result.value.ok) {
@@ -1530,37 +1593,49 @@ export default function TablePage() {
       });
     } else {
       setGlobalError(null);
+      toast.success(
+        `${numSuccessfullyUpdated}개 항목의 상태가 '${translateProgressStatus(
+          targetBatchStatus
+        )}'(으)로 성공적으로 변경되었습니다.`
+      );
     }
 
-    await fetchItems(); // Refresh data to show updated statuses
+    await fetchItems(); // Refresh data
     setIsBatchStatusDialogOpen(false);
     setIsLoading(false);
   };
 
   const startSequentialEdit = () => {
-    // Filter selected items from the *currently displayed page*
     const itemsToEdit = items.filter((item) =>
       selectedItemIds.includes(item.id)
     );
     if (itemsToEdit.length === 0) {
       setGlobalError("연속 수정할 항목을 현재 페이지에서 선택해주세요.");
+      toast.error("연속 수정할 항목을 현재 페이지에서 선택해주세요.");
       return;
     }
-    // Sort itemsToEdit by their original order in the `items` array (visual order)
-    // This ensures the sequential edit follows the table display order if selection was random.
+    // Sort itemsToEdit based on their original order in the `items` array (current page display order)
     itemsToEdit.sort((a, b) => items.indexOf(a) - items.indexOf(b));
 
     setSequentialEditQueue(itemsToEdit);
     setCurrentSequentialEditIndex(0);
-    setIsSequentialEditMode(true);
-    // The useEffect for sequential edit will handle opening the dialog and setting form data
+    setIsSequentialEditMode(true); // This will trigger the useEffect
+    toast.info(`연속 수정을 시작합니다. (${itemsToEdit.length}개 항목)`);
   };
 
   const handleSequentialSkip = () => {
+    const skippedItemName =
+      sequentialEditQueue[currentSequentialEditIndex]?.itemName || "현재";
     if (currentSequentialEditIndex < sequentialEditQueue.length - 1) {
+      toast.info(
+        `'${skippedItemName}' 항목을 건너뛰고 다음 항목으로 이동합니다.`
+      );
       setCurrentSequentialEditIndex((prev) => prev + 1);
+      // Form will be updated by useEffect watching currentSequentialEditIndex
     } else {
-      // Skipped the last item, so finish
+      toast.info(
+        `'${skippedItemName}' 항목을 건너뛰고 연속 수정을 종료합니다.`
+      );
       finishSequentialEdit();
     }
   };
@@ -1569,8 +1644,9 @@ export default function TablePage() {
     if (isSequentialEditMode && sequentialEditQueue.length > 0) {
       if (currentSequentialEditIndex < sequentialEditQueue.length) {
         const currentItem = sequentialEditQueue[currentSequentialEditIndex];
-        setEditingItem(currentItem); // Set for the dialog title and save logic
+        setEditingItem(currentItem); // Set for dialog title and save logic context
         setFormData({
+          // Populate form for the current item
           storeName: currentItem.storeName,
           itemName: currentItem.itemName,
           quantity: currentItem.quantity,
@@ -1579,33 +1655,31 @@ export default function TablePage() {
           notes: currentItem.notes || "",
           progressStatus: currentItem.progressStatus,
         });
-        setIsAddEditDialogOpen(true); // Open/ensure dialog is open
+        if (!isAddEditDialogOpen) setIsAddEditDialogOpen(true); // Ensure dialog is open
       } else {
-        // Reached end of queue (e.g. after last save or multiple skips)
+        // This case (index out of bounds) should ideally be handled by save/skip logic
         finishSequentialEdit();
       }
     }
-    // No 'else if' for sequentialEditQueue.length === 0 needed here,
-    // as finishSequentialEdit (which sets queue to empty) also sets isSequentialEditMode to false,
-    // breaking the outer condition.
   }, [
     isSequentialEditMode,
     sequentialEditQueue,
     currentSequentialEditIndex,
-    finishSequentialEdit, // Make sure finishSequentialEdit is stable (useCallback)
-    resetForm, // resetForm is also a dependency of finishSequentialEdit
+    finishSequentialEdit, // Added finishSequentialEdit to dependencies
+    isAddEditDialogOpen, // Added to manage dialog opening
   ]);
 
   return (
-    <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
+    <div className="container mx-auto p-4 md:p-6 bg-slate-100 min-h-screen">
+      <Toaster richColors position="top-right" />
       <GlobalErrorDisplay
         error={globalError}
         onClose={() => setGlobalError(null)}
       />
-      <Card className="shadow-xl rounded-xl border border-gray-200">
+      <Card className="shadow-xl rounded-xl border border-slate-200 bg-white">
         <TableToolbar
           selectedItemIds={selectedItemIds}
-          onBatchDeleteClick={() => setIsBatchDeleteConfirmOpen(true)}
+          onBatchDeleteClick={openBatchDeleteConfirmDialog}
           onBatchStatusChangeClick={handleOpenBatchStatusChangeDialog}
           onSequentialEditClick={startSequentialEdit}
           uniqueStoreNames={allStoreNames}
@@ -1615,8 +1689,8 @@ export default function TablePage() {
           onStatusChange={handleStatusChange}
           onExportClick={exportToExcel}
           onAddNewItemClick={() => handleOpenAddEditDialog(null)}
-          currentItemsCount={items.length} // Items currently displayed on the page
-          totalFilteredItemsCount={totalDbItems} // Total items matching filters in DB
+          currentItemsCount={items.length}
+          totalFilteredItemsCount={totalDbItems}
         />
         <CardContent className="p-0">
           <ItemsTable
@@ -1630,16 +1704,24 @@ export default function TablePage() {
             onEditItem={handleOpenAddEditDialog}
             onDeleteItem={openSingleDeleteConfirmDialog}
             isLoading={isLoading}
-            totalDbItems={totalDbItems} // Pass the filtered total from server
+            totalDbItems={totalDbItems}
             selectedStore={selectedStore}
             selectedStatus={selectedStatus}
           />
         </CardContent>
-        {/* Only show pagination if there are pages to paginate */}
-        {serverTotalPages > 0 && (
+        {(serverTotalPages > 0 ||
+          (totalDbItems > 0 &&
+            itemsPerPage < totalDbItems &&
+            items.length > 0)) && ( // Show pagination if there are pages OR if there are items and not all are shown on one page
           <PaginationControls
             currentPage={currentPage}
-            totalPages={serverTotalPages}
+            totalPages={
+              serverTotalPages > 0
+                ? serverTotalPages
+                : totalDbItems > 0
+                ? Math.ceil(totalDbItems / itemsPerPage)
+                : 0
+            } // Calculate client-side if server doesn't provide it but items exist
             onPageChange={setCurrentPage}
             itemsPerPage={itemsPerPage}
             onItemsPerPageChange={handleItemsPerPageChange}
@@ -1647,19 +1729,18 @@ export default function TablePage() {
           />
         )}
       </Card>
-
       <AddEditItemDialog
         isOpen={isAddEditDialogOpen}
         onOpenChange={handleAddEditDialogClose}
         isSequentialEditMode={isSequentialEditMode}
         currentSequentialEditIndex={currentSequentialEditIndex}
         sequentialEditQueueLength={sequentialEditQueue.length}
-        editingItem={editingItem} // This will be the current item in sequence or the item being edited
+        editingItem={editingItem}
         formData={formData}
         onFormDataChange={handleFormDataChange}
         onSave={handleSave}
         onSkipSequential={handleSequentialSkip}
-        onFinishSequential={finishSequentialEdit}
+        onFinishSequential={handleFinishSequentialFromDialog}
         isLoading={isLoading}
       />
       <ConfirmationDialog
@@ -1669,7 +1750,7 @@ export default function TablePage() {
         description={
           <p>
             정말로{" "}
-            <strong className="font-medium">
+            <strong className="font-medium text-rose-600">
               &lsquo;{itemToDelete?.itemName}&rsquo;
             </strong>{" "}
             (ID: {itemToDelete?.id}) 비품을 삭제하시겠습니까?
@@ -1679,6 +1760,7 @@ export default function TablePage() {
         onConfirm={confirmSingleDelete}
         isLoading={isLoading}
         confirmButtonText="삭제"
+        confirmButtonVariant="destructive"
       />
       <ConfirmationDialog
         isOpen={isBatchDeleteConfirmOpen}
@@ -1687,14 +1769,17 @@ export default function TablePage() {
         description={
           <p>
             선택된{" "}
-            <strong className="font-medium">{selectedItemIds.length}개</strong>{" "}
-            의 비품을 정말로 삭제하시겠습니까?
-            <br />이 작업은 되돌릴 수 없습니다.
+            <strong className="font-medium text-rose-600">
+              {selectedItemIds.length}개
+            </strong>{" "}
+            의 비품을 정말로 삭제하시겠습니까? <br />이 작업은 되돌릴 수
+            없습니다.
           </p>
         }
         onConfirm={confirmBatchDelete}
         isLoading={isLoading}
         confirmButtonText="삭제"
+        confirmButtonVariant="destructive"
       />
       <BatchStatusChangeDialog
         isOpen={isBatchStatusDialogOpen}
