@@ -18,7 +18,7 @@ interface UpdateItemData {
     notes?: string;
 }
 
-// Interface for the route parameters
+// Interface for the route parameters (shape of the resolved params)
 interface RouteParams {
     id: string;
 }
@@ -26,16 +26,20 @@ interface RouteParams {
 /**
  * Handles PUT requests to update an existing item.
  * @param request - The incoming NextRequest.
- * @param params - The route parameters with an 'id' property, destructured from the context.
+ * @param paramsPromise - A promise that resolves to the route parameters.
  * @returns A NextResponse with the updated item or an error message.
  */
 export async function PUT(
     request: NextRequest,
-    { params }: { params: RouteParams } // Destructuring params from context
+    { params: paramsPromise }: { params: Promise<RouteParams> } // params is a Promise
 ) {
-    const { id } = params; // Destructure id from params object
+    let idForLogging: string = "[id_unresolved_or_lookup_failed]"; // For logging in catch block
 
     try {
+        const params = await paramsPromise; // Resolve the promise to get actual params
+        const { id } = params; // Destructure id from resolved params
+        idForLogging = id; // Set for logging in case of subsequent errors
+
         // 1. Authenticate the request
         const token = request.cookies.get('token')?.value;
         if (!token || !verifyToken(token)) { // Assuming verifyToken returns a boolean or relevant user payload
@@ -52,7 +56,7 @@ export async function PUT(
         const data: UpdateItemData = await request.json();
 
         // 4. Construct the payload for Prisma update, only including fields present in the request
-        const updatePayload: { [key: string]: string | number | Date | null | ProgressStatus | DeliveryMethod } = { // More specific type for updatePayload values
+        const updatePayload: { [key: string]: string | number | Date | null | ProgressStatus | DeliveryMethod } = {
             updatedAt: new Date(), // Always update the updatedAt timestamp
         };
 
@@ -68,11 +72,9 @@ export async function PUT(
         if (data.specification !== undefined) updatePayload.specification = data.specification;
         if (data.deliveryMethod !== undefined) updatePayload.deliveryMethod = data.deliveryMethod;
         if (data.progressStatus !== undefined) updatePayload.progressStatus = data.progressStatus;
-        // Ensure notes are handled correctly, allowing empty string or null
         if (data.notes !== undefined) updatePayload.notes = data.notes === '' ? null : data.notes;
 
 
-        // Check if there's anything to update besides 'updatedAt'
         if (Object.keys(updatePayload).length <= 1) {
             return NextResponse.json({ error: '수정할 내용이 없습니다.' }, { status: 400 });
         }
@@ -87,7 +89,7 @@ export async function PUT(
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`PUT /api/items/${id} Error:`, error); // Using destructured id
+        console.error(`PUT /api/items/${idForLogging} Error:`, error);
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '해당 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -106,16 +108,20 @@ export async function PUT(
 /**
  * Handles DELETE requests to remove an item.
  * @param request - The incoming NextRequest.
- * @param params - The route parameters with an 'id' property, destructured from the context.
+ * @param paramsPromise - A promise that resolves to the route parameters.
  * @returns A NextResponse with a success message or an error message.
  */
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: RouteParams } // Destructuring params from context
+    { params: paramsPromise }: { params: Promise<RouteParams> } // params is a Promise
 ) {
-    const { id } = params; // Destructure id from params object
+    let idForLogging: string = "[id_unresolved_or_lookup_failed]"; // For logging in catch block
 
     try {
+        const params = await paramsPromise; // Resolve the promise to get actual params
+        const { id } = params; // Destructure id from resolved params
+        idForLogging = id; // Set for logging
+
         // 1. Authenticate the request
         const token = request.cookies.get('token')?.value;
         if (!token || !verifyToken(token)) {
@@ -135,12 +141,10 @@ export async function DELETE(
 
         // 4. Return a success response
         return NextResponse.json({ message: `ID ${itemId} 비품이 성공적으로 삭제되었습니다.` }, { status: 200 });
-        // Alternatively, for 204 No Content:
-        // return new NextResponse(null, { status: 204 });
 
     } catch (e: unknown) {
         const error = e;
-        console.error(`DELETE /api/items/${id} Error:`, error); // Using destructured id
+        console.error(`DELETE /api/items/${idForLogging} Error:`, error);
 
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '삭제할 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
@@ -158,18 +162,22 @@ export async function DELETE(
 /*
 export async function GET(
   request: NextRequest,
-  { params }: { params: RouteParams } // Destructuring params from context
+  { params: paramsPromise }: { params: Promise<RouteParams> } // params is a Promise
 ) {
-  const { id } = params; // Destructure id from params object
+  let idForLogging: string = "[id_unresolved_or_lookup_failed]"; // For logging in catch block
 
   try {
-    // Optional: Token verification if fetching single items also requires auth
+    const params = await paramsPromise; // Resolve the promise
+    const { id } = params; // Destructure id
+    idForLogging = id; // Set for logging
+
+    // Optional: Token verification
     // const token = request.cookies.get('token')?.value;
     // if (!token || !verifyToken(token)) {
     //   return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
     // }
 
-    const itemId = parseInt(id, 10); // Using destructured id
+    const itemId = parseInt(id, 10);
     if (isNaN(itemId)) {
       return NextResponse.json({ error: '유효하지 않은 ID 형식입니다.' }, { status: 400 });
     }
@@ -185,7 +193,7 @@ export async function GET(
     return NextResponse.json(item);
   } catch (e: unknown) { 
     const error = e;
-    console.error(`GET /api/items/${id} Error:`, error); // Using destructured id
+    console.error(`GET /api/items/${idForLogging} Error:`, error); 
     let message = '서버 오류가 발생했습니다.';
     if (error instanceof Error) {
         message = error.message;
