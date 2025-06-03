@@ -1,0 +1,73 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  todos     Todo[] // Relation to User's todos
+
+  @@map("users")
+}
+
+model Item {
+  id             Int            @id @default(autoincrement())
+  storeName      String         @map("store_name")
+  itemName       String         @map("item_name")
+  quantity       Int
+  specification  String
+  deliveryMethod DeliveryMethod @map("delivery_method")
+  notes          String?
+  progressStatus ProgressStatus @default(UNCONFIRMED) @map("progress_status")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@map("items")
+}
+
+// Todo Model
+model Todo {
+  id          String       @id @default(uuid())
+  text        String
+  completed   Boolean      @default(false) @map("is_completed")
+  priority    TodoPriority @default(MEDIUM) @map("todo_priority")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  userId      Int?         // Optional: Foreign key to User
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade) // Optional: Relation to User
+
+  @@map("todos")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum DeliveryMethod {
+  DIRECT  @map("직접배송")
+  COURIER @map("택배출고")
+}
+
+enum ProgressStatus {
+  IN_PROGRESS @map("진행 중")
+  COMPLETED   @map("완료")
+  UNCONFIRMED @map("미확인")
+}
+
+// Enum for Todo Priority
+enum TodoPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
