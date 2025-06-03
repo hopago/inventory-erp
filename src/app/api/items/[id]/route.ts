@@ -18,17 +18,21 @@ interface UpdateItemData {
     notes?: string;
 }
 
+// Interface for the route parameters
+interface RouteParams {
+    id: string;
+}
+
 /**
  * Handles PUT requests to update an existing item.
  * @param request - The incoming NextRequest.
  * @param context - The context object containing route parameters.
- * @param context.params - The route parameters.
- * @param context.params.id - The ID of the item to update.
+ * @param context.params - The route parameters with an 'id' property.
  * @returns A NextResponse with the updated item or an error message.
  */
 export async function PUT(
     request: NextRequest,
-    context: { params: { id: string } }
+    context: { params: RouteParams } // Updated to use RouteParams interface
 ) {
     try {
         // 1. Authenticate the request
@@ -80,21 +84,18 @@ export async function PUT(
 
         return NextResponse.json(updatedItem);
 
-    } catch (e: unknown) { // Changed error type from any to unknown
-        const error = e; // Assign to a new const for easier reading if preferred
+    } catch (e: unknown) {
+        const error = e;
         console.error(`PUT /api/items/${context.params.id} Error:`, error);
 
-        // Check for Prisma P2025 error (Record to update not found)
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '해당 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
         }
-        // Check for JSON parsing error
         if (error instanceof SyntaxError) {
             return NextResponse.json({ error: '잘못된 요청 본문 형식입니다.' }, { status: 400 });
         }
-        // Default server error
         let message = '서버 오류가 발생했습니다.';
-        if (error instanceof Error) { // Check if it's an Error instance to safely access message
+        if (error instanceof Error) {
             message = error.message;
         }
         return NextResponse.json({ error: message }, { status: 500 });
@@ -105,13 +106,12 @@ export async function PUT(
  * Handles DELETE requests to remove an item.
  * @param request - The incoming NextRequest.
  * @param context - The context object containing route parameters.
- * @param context.params - The route parameters.
- * @param context.params.id - The ID of the item to delete.
+ * @param context.params - The route parameters with an 'id' property.
  * @returns A NextResponse with a success message or an error message.
  */
 export async function DELETE(
     request: NextRequest,
-    context: { params: { id: string } }
+    context: { params: RouteParams } // Updated to use RouteParams interface
 ) {
     try {
         // 1. Authenticate the request
@@ -136,15 +136,13 @@ export async function DELETE(
         // Alternatively, for 204 No Content:
         // return new NextResponse(null, { status: 204 });
 
-    } catch (e: unknown) { // Changed error type from any to unknown
+    } catch (e: unknown) {
         const error = e;
         console.error(`DELETE /api/items/${context.params.id} Error:`, error);
 
-        // Check for Prisma P2025 error (Record to delete not found)
         if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2025') {
             return NextResponse.json({ error: '삭제할 ID의 비품을 찾을 수 없습니다.' }, { status: 404 });
         }
-        // Default server error
         let message = '서버 오류가 발생했습니다.';
         if (error instanceof Error) {
             message = error.message;
@@ -158,7 +156,7 @@ export async function DELETE(
 /*
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: RouteParams } // Updated to use RouteParams interface
 ) {
   try {
     // Optional: Token verification if fetching single items also requires auth
@@ -181,10 +179,9 @@ export async function GET(
     }
 
     return NextResponse.json(item);
-  } catch (e: unknown) { // Changed error type from any to unknown
+  } catch (e: unknown) { 
     const error = e;
     console.error(`GET /api/items/${context.params.id} Error:`, error);
-    // Default server error
     let message = '서버 오류가 발생했습니다.';
     if (error instanceof Error) {
         message = error.message;
