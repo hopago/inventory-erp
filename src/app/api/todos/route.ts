@@ -36,17 +36,23 @@ function errorResponse(message: string, status: number = 400) {
 }
 
 // 성공 응답 헬퍼 함수
-function successResponse(data: {
-    [key: string]: any; // 데이터 형식에 맞게 조정
-}, status: number = 200, meta?: {
+interface Meta {
     currentPage?: number;
     totalPages?: number;
     totalCount?: number;
     limit?: number;
     hasPrevPage?: boolean;
     hasNextPage?: boolean;
-}) {
-    return NextResponse.json({
+}
+
+interface SuccessResponse<T> {
+    data: T;
+    success: true;
+    meta?: Meta;
+}
+
+function successResponse<T>(data: T, status: number = 200, meta?: Meta): NextResponse<SuccessResponse<T>> {
+    return NextResponse.json<SuccessResponse<T>>({
         data,
         success: true,
         ...(meta && { meta })

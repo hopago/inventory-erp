@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from "@/lib/auth"
-import { Cabin_Sketch } from 'next/font/google';
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
     try {

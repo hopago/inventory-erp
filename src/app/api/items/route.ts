@@ -117,8 +117,16 @@ export async function POST(request: NextRequest) {
             errorMessage = error.message;
         }
         // Check for Prisma-specific errors if needed, e.g., unique constraint violation
-        if ((error as any).code === 'P2002') { // Example for unique constraint
-            return NextResponse.json({ error: '이미 존재하는 항목입니다.', details: (error as any).meta?.target }, { status: 409 });
+        if ((error as {
+            code: string;
+            meta?: { target?: string[] };
+        }).code === 'P2002') { // Example for unique constraint
+            return NextResponse.json({
+                error: '이미 존재하는 항목입니다.', details: (error as {
+                    code: string;
+                    meta?: { target?: string[] };
+                }).meta?.target
+            }, { status: 409 });
         }
         return NextResponse.json({ error: "항목 생성 중 오류 발생: " + errorMessage }, { status: 500 });
     }
