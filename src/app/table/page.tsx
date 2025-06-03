@@ -217,7 +217,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({
 interface ItemsTableProps {
   itemsToDisplay: Item[]; // Paginated items from server
   selectedItemIds: number[];
-  sortConfig: { key: keyof Item | null; direction: "ascending" | "descending" };
+  // sortConfig: { key: keyof Item | null; direction: "ascending" | "descending" }; // Removed: Handled by parent
   selectAllState: boolean | "indeterminate";
   onSelectAll: (checked: boolean | "indeterminate") => void;
   onSelectItem: (itemId: number, checked: boolean | "indeterminate") => void;
@@ -233,7 +233,7 @@ interface ItemsTableProps {
 const ItemsTable: React.FC<ItemsTableProps> = ({
   itemsToDisplay,
   selectedItemIds,
-  sortConfig, // sortConfig is now mainly for display and triggering server sort
+  // sortConfig, // Removed
   selectAllState,
   onSelectAll,
   onSelectItem,
@@ -242,12 +242,10 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
   onEditItem,
   onDeleteItem,
   isLoading,
-  totalDbItems, // Total items from server matching current filters
+  totalDbItems,
   selectedStore,
 }) => {
-  // itemsToDisplay is now the direct data for the current page from the server
   if (isLoading && itemsToDisplay.length === 0) {
-    // Show loading if actively loading and no items yet
     return (
       <div className="text-center p-10 text-gray-500">
         데이터를 불러오는 중입니다...
@@ -278,7 +276,6 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
                 aria-label="현재 페이지 모든 항목 선택"
               />
             </TableHead>
-            {/* Columns remain the same, onClick for sorting will trigger server-side sort */}
             <TableHead
               onClick={() => onRequestSort("id")}
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -310,13 +307,13 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
               onClick={() => onRequestSort("deliveryMethod")}
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
             >
-              배송 <>{getSortIcon("deliveryMethod")}</>
+              <>배송 {getSortIcon("deliveryMethod")}</>
             </TableHead>
             <TableHead
               onClick={() => onRequestSort("progressStatus")}
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
             >
-              상태 <>{getSortIcon("progressStatus")}</>
+              <>상태 {getSortIcon("progressStatus")}</>
             </TableHead>
             <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               비고
@@ -325,13 +322,13 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
               onClick={() => onRequestSort("createdAt")}
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
             >
-              등록일 <>{getSortIcon("createdAt")}</>
+              <>등록일 {getSortIcon("createdAt")}</>
             </TableHead>
             <TableHead
               onClick={() => onRequestSort("updatedAt")}
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
             >
-              수정일 <>{getSortIcon("updatedAt")}</>
+              <>수정일 {getSortIcon("updatedAt")}</>
             </TableHead>
             <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
               작업
@@ -440,7 +437,7 @@ interface PaginationControlsProps {
   onPageChange: (page: number) => void;
   itemsPerPage: number;
   onItemsPerPageChange: (value: number) => void;
-  totalDbItems: number; // Renamed from totalFilteredItems for clarity
+  totalDbItems: number;
 }
 
 const PaginationControls: React.FC<PaginationControlsProps> = ({
@@ -451,7 +448,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   onItemsPerPageChange,
   totalDbItems,
 }) => {
-  if (totalPages <= 0) return null; // Hide if no pages or error
+  if (totalPages <= 0) return null;
 
   const handlePrevious = () => onPageChange(Math.max(1, currentPage - 1));
   const handleNext = () => onPageChange(Math.min(totalPages, currentPage + 1));
@@ -459,20 +456,16 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   const handleLast = () => onPageChange(totalPages);
 
   const pageNumbers = [];
-  const maxPagesToShow = 5; // Max number of page buttons to show (e.g., 1 ... 4 5 6 ... 10)
+  const maxPagesToShow = 5;
   let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
   let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
 
-  // Adjust startPage and endPage if the range is too small and there are more pages
   if (totalPages > 0 && endPage - startPage + 1 < maxPagesToShow) {
     if (currentPage < maxPagesToShow / 2) {
-      // If near the beginning
       endPage = Math.min(totalPages, maxPagesToShow);
     } else if (currentPage > totalPages - maxPagesToShow / 2) {
-      // If near the end
       startPage = Math.max(1, totalPages - maxPagesToShow + 1);
     } else {
-      // In the middle
       startPage = Math.max(1, endPage - maxPagesToShow + 1);
     }
   }
@@ -601,7 +594,7 @@ interface AddEditItemDialogProps {
   };
   onFormDataChange: (
     field: keyof AddEditItemDialogProps["formData"],
-    value: any
+    value: string | number | ProgressStatus | "DIRECT" | "COURIER" // Corrected type
   ) => void;
   onSave: () => Promise<void>;
   onSkipSequential?: () => void;
@@ -898,13 +891,12 @@ const BatchStatusChangeDialog: React.FC<BatchStatusChangeDialogProps> = ({
 
 // --- Main Page Component ---
 export default function TablePage() {
-  const [items, setItems] = useState<Item[]>([]); // Holds items for the current page
-  const [allStoreNames, setAllStoreNames] = useState<string[]>([]); // For store filter dropdown
+  const [items, setItems] = useState<Item[]>([]);
+  const [allStoreNames, setAllStoreNames] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Server-side pagination, sorting, filtering state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_OPTIONS[0]);
   const [totalDbItems, setTotalDbItems] = useState(0);
@@ -913,12 +905,11 @@ export default function TablePage() {
     key: keyof Item | null;
     direction: "ascending" | "descending";
   }>({
-    key: "createdAt", // Default sort key
-    direction: "descending", // Default sort order
+    key: "createdAt",
+    direction: "descending",
   });
   const [selectedStore, setSelectedStore] = useState<string>("");
 
-  // Client-side state for UI interactions
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [formData, setFormData] = useState({
@@ -942,16 +933,13 @@ export default function TablePage() {
     useState<ProgressStatus>("UNCONFIRMED");
 
   const [isSequentialEditMode, setIsSequentialEditMode] = useState(false);
-  const [sequentialEditQueue, setSequentialEditQueue] = useState<Item[]>([]); // Operates on current page items if selected from there
+  const [sequentialEditQueue, setSequentialEditQueue] = useState<Item[]>([]);
   const [currentSequentialEditIndex, setCurrentSequentialEditIndex] =
     useState(0);
 
-  // Fetch items from server
   const fetchItems = useCallback(async () => {
     setIsLoading(true);
     setGlobalError(null);
-    // Optional: Clear current items before fetching new page to avoid showing stale data briefly
-    // setItems([]);
 
     let url = `/api/items?page=${currentPage}&limit=${itemsPerPage}`;
     if (sortConfig.key) {
@@ -975,15 +963,12 @@ export default function TablePage() {
       setItems(data.items || []);
       setTotalDbItems(data.totalItems || 0);
       setServerTotalPages(data.totalPages || 0);
-      // The API returns currentPage, ensure it matches client state or update client state
-      if (data.currentPage && data.currentPage !== currentPage) {
-        // This might happen if the requested page was out of bounds and server corrected it.
-        // setCurrentPage(data.currentPage); // Be cautious with this to avoid loops if API behavior is unexpected.
-      }
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e as Error;
+      // Corrected type
       console.error("데이터 로드 실패:", error);
       setGlobalError(error.message || "데이터 로드 중 알 수 없는 오류 발생");
-      setItems([]); // Clear items on error
+      setItems([]);
       setTotalDbItems(0);
       setServerTotalPages(0);
     } finally {
@@ -991,19 +976,14 @@ export default function TablePage() {
     }
   }, [currentPage, itemsPerPage, sortConfig, selectedStore]);
 
-  // Effect to fetch items when pagination, sorting, or filtering changes
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
 
-  // Fetch all unique store names once for the filter dropdown
   useEffect(() => {
     const fetchAllStoresForFilter = async () => {
       try {
-        // Attempt to fetch a large number of items to deduce store names.
-        // WARNING: This is not ideal for very large datasets.
-        // A dedicated API endpoint like `/api/stores` returning unique names is the preferred solution.
-        const response = await fetch("/api/items?limit=10000"); // Adjust limit as needed, but be mindful of performance
+        const response = await fetch("/api/items?limit=10000");
         if (response.ok) {
           const data = await response.json();
           if (data.items && Array.isArray(data.items)) {
@@ -1031,8 +1011,7 @@ export default function TablePage() {
       newDirection = "descending";
     }
     setSortConfig({ key, direction: newDirection });
-    setCurrentPage(1); // Reset to first page on sort
-    // fetchItems will be called by useEffect due to sortConfig change
+    setCurrentPage(1);
   };
 
   const getSortIcon = (columnKey: keyof Item) => {
@@ -1049,20 +1028,16 @@ export default function TablePage() {
 
   const handleItemsPerPageChange = (value: number) => {
     setItemsPerPage(value);
-    setCurrentPage(1); // Reset to first page
-    // fetchItems will be called by useEffect
+    setCurrentPage(1);
   };
 
   const handleStoreChange = (value: string) => {
     setSelectedStore(value);
-    setCurrentPage(1); // Reset to first page on filter change
-    // fetchItems will be called by useEffect
+    setCurrentPage(1);
   };
 
-  // Selection logic now applies to items on the current page
   const handleSelectAllCurrentPage = (checked: boolean | "indeterminate") => {
     if (checked === true) setSelectedItemIds(items.map((item) => item.id));
-    // Select all on current page
     else setSelectedItemIds([]);
   };
 
@@ -1074,13 +1049,11 @@ export default function TablePage() {
     else setSelectedItemIds((prev) => prev.filter((id) => id !== itemId));
   };
 
-  // Check if all items on the *current page* are selected
   const isAllCurrentPageSelected = useMemo(() => {
     if (items.length === 0) return false;
     return items.every((item) => selectedItemIds.includes(item.id));
   }, [items, selectedItemIds]);
 
-  // Check if some (but not all) items on the *current page* are selected
   const isSomeCurrentPageSelected = useMemo(() => {
     if (items.length === 0 || isAllCurrentPageSelected) return false;
     return items.some((item) => selectedItemIds.includes(item.id));
@@ -1093,7 +1066,6 @@ export default function TablePage() {
     : false;
 
   const exportToExcel = () => {
-    // Exports only items on the current page.
     const worksheet = XLSX.utils.json_to_sheet(
       items.map((item) => ({
         ID: item.id,
@@ -1124,7 +1096,7 @@ export default function TablePage() {
     );
   };
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFormData({
       storeName: "",
       itemName: "",
@@ -1135,10 +1107,18 @@ export default function TablePage() {
       progressStatus: "UNCONFIRMED",
     });
     setEditingItem(null);
-  };
+  }, []); // setFormData and setEditingItem are stable
+
+  const finishSequentialEdit = useCallback(() => {
+    setIsSequentialEditMode(false);
+    setSequentialEditQueue([]);
+    setCurrentSequentialEditIndex(0);
+    setIsAddEditDialogOpen(false);
+    resetForm();
+  }, [resetForm]); // Dependencies: resetForm, other setters are stable
 
   const handleOpenAddEditDialog = (item: Item | null) => {
-    if (isSequentialEditMode) finishSequentialEdit(); // Exit sequential mode if opening manually
+    if (isSequentialEditMode) finishSequentialEdit();
     if (item) {
       setEditingItem(item);
       setFormData({
@@ -1158,28 +1138,28 @@ export default function TablePage() {
 
   const handleAddEditDialogClose = (isOpen: boolean) => {
     if (!isOpen) {
-      if (isSequentialEditMode)
-        finishSequentialEdit(); // If closing from sequential mode, finish it
+      if (isSequentialEditMode) finishSequentialEdit();
       else {
-        // Normal close
         setIsAddEditDialogOpen(false);
         resetForm();
       }
     } else {
-      // Dialog is being opened
-      if (!editingItem && !isSequentialEditMode) resetForm(); // Reset if opening for new item (not in sequential)
+      if (!editingItem && !isSequentialEditMode) resetForm();
       setIsAddEditDialogOpen(true);
     }
   };
 
-  const handleFormDataChange = (field: keyof typeof formData, value: any) => {
+  const handleFormDataChange = (
+    field: keyof typeof formData,
+    value: string | number | ProgressStatus | "DIRECT" | "COURIER" // Corrected type
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     setIsLoading(true);
     setGlobalError(null);
-    const itemToSave = editingItem; // This is the item being edited, or null for new item
+    const itemToSave = editingItem;
     const saveData = { ...formData, quantity: Number(formData.quantity) };
 
     try {
@@ -1192,24 +1172,13 @@ export default function TablePage() {
       });
 
       if (response.ok) {
-        // If it was a new item (POST) and not in sequential mode,
-        // and if you want to go to the page where the new item would be (usually last page if sorted by newest)
-        // this requires knowing the total items *before* adding, or re-fetching to the potentially new last page.
-        // For simplicity now, just re-fetch current view or first page for new items.
         if (!itemToSave && !isSequentialEditMode) {
-          // Option 1: Go to first page (if sorted by newest, new item might not be there)
-          // setCurrentPage(1);
-          // Option 2: Re-fetch current page (new item might not be visible if current page is full and not sorted by newest)
-          // await fetchItems();
-          // Option 3 (More complex): Fetch to see if a new page was created.
-          // For now, let's just refetch. If it's a new item, it might appear if sort order allows.
-          await fetchItems(); // Re-fetch to update the list
+          await fetchItems();
         } else {
-          await fetchItems(); // Re-fetch current page data for edits or sequential saves
+          await fetchItems();
         }
 
         if (isSequentialEditMode) {
-          // The effect for sequential edit will handle moving to the next item or finishing
           setCurrentSequentialEditIndex((prev) => prev + 1);
         } else {
           setIsAddEditDialogOpen(false);
@@ -1221,11 +1190,17 @@ export default function TablePage() {
           .catch(() => ({ error: "응답 처리 실패" }));
         console.error("저장 실패:", errorData);
         setGlobalError(`저장 실패: ${errorData.error || "알 수 없는 오류"}`);
-        if (isSequentialEditMode) setIsAddEditDialogOpen(true); // Keep dialog open for correction in sequential mode
+        if (isSequentialEditMode) setIsAddEditDialogOpen(true);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const e = error as {
+        message?: string;
+        status?: number;
+        statusText?: string;
+      }; // Corrected type
+      // Corrected type
       console.error("저장 실패:", error);
-      setGlobalError(`저장 중 오류 발생: ${error.message}`);
+      setGlobalError(`저장 중 오류 발생: ${e.message}`);
       if (isSequentialEditMode) setIsAddEditDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -1249,11 +1224,10 @@ export default function TablePage() {
         setSelectedItemIds((prev) =>
           prev.filter((id) => id !== itemToDelete.id)
         );
-        // Check if the current page becomes empty after deletion
         if (items.length === 1 && currentPage > 1) {
-          setCurrentPage((prev) => prev - 1); // This will trigger fetchItems via useEffect
+          setCurrentPage((prev) => prev - 1);
         } else {
-          await fetchItems(); // Re-fetch current page data
+          await fetchItems();
         }
       } else {
         const errorData = await response
@@ -1262,7 +1236,9 @@ export default function TablePage() {
         console.error("삭제 실패:", errorData);
         setGlobalError(`삭제 실패: ${errorData.error || "알 수 없는 오류"}`);
       }
-    } catch (error: any) {
+    } catch (e: unknown) {
+      // Corrected type
+      const error = e as Error;
       console.error("삭제 실패:", error);
       setGlobalError(`삭제 중 오류 발생: ${error.message}`);
     } finally {
@@ -1275,7 +1251,7 @@ export default function TablePage() {
   const confirmBatchDelete = async () => {
     setIsLoading(true);
     setGlobalError(null);
-    const currentSelectedItemIds = [...selectedItemIds]; // Copy before clearing
+    const currentSelectedItemIds = [...selectedItemIds];
 
     const results = await Promise.allSettled(
       currentSelectedItemIds.map((id) =>
@@ -1283,7 +1259,7 @@ export default function TablePage() {
       )
     );
 
-    setSelectedItemIds([]); // Clear selection immediately after requests are sent
+    setSelectedItemIds([]);
 
     const failedDeletes = results.filter(
       (r) =>
@@ -1313,16 +1289,14 @@ export default function TablePage() {
       setGlobalError(null);
     }
 
-    // After batch delete, check if current page might become empty or require adjustment
-    // This is a simplified check; more robust logic might be needed if deleting many items across potential page boundaries
     if (
       currentSelectedItemIds.length === items.length &&
       currentPage > 1 &&
       items.every((item) => currentSelectedItemIds.includes(item.id))
     ) {
-      setCurrentPage((prev) => Math.max(1, prev - 1)); // Go to previous page if current becomes empty
+      setCurrentPage((prev) => Math.max(1, prev - 1));
     } else {
-      await fetchItems(); // Re-fetch current page data
+      await fetchItems();
     }
     setIsBatchDeleteConfirmOpen(false);
     setIsLoading(false);
@@ -1340,7 +1314,7 @@ export default function TablePage() {
   const confirmBatchStatusChange = async () => {
     setIsLoading(true);
     setGlobalError(null);
-    const currentSelectedItemIds = [...selectedItemIds]; // Copy before clearing
+    const currentSelectedItemIds = [...selectedItemIds];
 
     const results = await Promise.allSettled(
       currentSelectedItemIds.map((id) =>
@@ -1351,7 +1325,7 @@ export default function TablePage() {
         })
       )
     );
-    setSelectedItemIds([]); // Clear selection
+    setSelectedItemIds([]);
 
     const failedUpdates = results.filter(
       (r) =>
@@ -1380,13 +1354,12 @@ export default function TablePage() {
     } else {
       setGlobalError(null);
     }
-    await fetchItems(); // Re-fetch current page data
+    await fetchItems();
     setIsBatchStatusDialogOpen(false);
     setIsLoading(false);
   };
 
   const startSequentialEdit = () => {
-    // Sequential edit will operate on selected items from the CURRENT PAGE
     const itemsToEdit = items.filter((item) =>
       selectedItemIds.includes(item.id)
     );
@@ -1394,36 +1367,21 @@ export default function TablePage() {
       setGlobalError("연속 수정할 항목을 현재 페이지에서 선택해주세요.");
       return;
     }
-    // Maintain visual order from the current page's items list
-    // No need to re-sort if 'items' is already in the desired display order
     setSequentialEditQueue(itemsToEdit);
     setCurrentSequentialEditIndex(0);
     setIsSequentialEditMode(true);
-    // The useEffect for sequential edit will pick up from here
   };
 
   const handleSequentialSkip = () => {
     setCurrentSequentialEditIndex((prev) => prev + 1);
-    // The useEffect for sequential edit will handle opening dialog for next item or finishing
   };
 
-  const finishSequentialEdit = () => {
-    setIsSequentialEditMode(false);
-    setSequentialEditQueue([]);
-    setCurrentSequentialEditIndex(0);
-    setIsAddEditDialogOpen(false); // Ensure main dialog is closed
-    resetForm();
-    // Optionally clear selection: setSelectedItemIds([]);
-  };
-
-  // Effect for sequential editing - relies on currentSequentialEditIndex and queue
   useEffect(() => {
     if (isSequentialEditMode && sequentialEditQueue.length > 0) {
       if (currentSequentialEditIndex < sequentialEditQueue.length) {
         const currentItem = sequentialEditQueue[currentSequentialEditIndex];
-        setEditingItem(currentItem); // Set the item being edited
+        setEditingItem(currentItem);
         setFormData({
-          // Populate form with this item's data
           storeName: currentItem.storeName,
           itemName: currentItem.itemName,
           quantity: currentItem.quantity,
@@ -1432,16 +1390,19 @@ export default function TablePage() {
           notes: currentItem.notes || "",
           progressStatus: currentItem.progressStatus,
         });
-        setIsAddEditDialogOpen(true); // Open the main dialog
+        setIsAddEditDialogOpen(true);
       } else {
-        // All items in queue processed
         finishSequentialEdit();
       }
     } else if (isSequentialEditMode && sequentialEditQueue.length === 0) {
-      // If sequential mode is on but queue is empty (e.g. after finishing)
       finishSequentialEdit();
     }
-  }, [isSequentialEditMode, sequentialEditQueue, currentSequentialEditIndex]); // Added dependencies
+  }, [
+    isSequentialEditMode,
+    sequentialEditQueue,
+    currentSequentialEditIndex,
+    finishSequentialEdit,
+  ]); // Added finishSequentialEdit
 
   return (
     <div className="container mx-auto p-4 md:p-6">
@@ -1455,21 +1416,21 @@ export default function TablePage() {
           onBatchDeleteClick={() => setIsBatchDeleteConfirmOpen(true)}
           onBatchStatusChangeClick={handleOpenBatchStatusChangeDialog}
           onSequentialEditClick={startSequentialEdit}
-          uniqueStoreNames={allStoreNames} // Use allStoreNames fetched once
+          uniqueStoreNames={allStoreNames}
           selectedStore={selectedStore}
           onStoreChange={handleStoreChange}
           onExportClick={exportToExcel}
           onAddNewItemClick={() => handleOpenAddEditDialog(null)}
-          currentItemsCount={items.length} // items on current page
-          totalFilteredItemsCount={totalDbItems} // total items from server matching filter
+          currentItemsCount={items.length}
+          totalFilteredItemsCount={totalDbItems}
         />
         <CardContent className="p-0">
           <ItemsTable
-            itemsToDisplay={items} // Directly pass current page's items
+            itemsToDisplay={items}
             selectedItemIds={selectedItemIds}
-            sortConfig={sortConfig}
-            selectAllState={selectAllStateForCurrentPage} // Use state for current page selection
-            onSelectAll={handleSelectAllCurrentPage} // Use handler for current page
+            // sortConfig={sortConfig} // Removed
+            selectAllState={selectAllStateForCurrentPage}
+            onSelectAll={handleSelectAllCurrentPage}
             onSelectItem={handleSelectItem}
             onRequestSort={requestSort}
             getSortIcon={getSortIcon}
@@ -1480,11 +1441,11 @@ export default function TablePage() {
             selectedStore={selectedStore}
           />
         </CardContent>
-        {serverTotalPages > 0 && ( // Only show pagination if there are pages
+        {serverTotalPages > 0 && (
           <PaginationControls
             currentPage={currentPage}
             totalPages={serverTotalPages}
-            onPageChange={setCurrentPage} // This will trigger fetchItems via useEffect
+            onPageChange={setCurrentPage}
             itemsPerPage={itemsPerPage}
             onItemsPerPageChange={handleItemsPerPageChange}
             totalDbItems={totalDbItems}
@@ -1513,8 +1474,10 @@ export default function TablePage() {
         title="삭제 확인"
         description={
           <p>
-            정말로{" "}
-            <strong className="font-medium">'{itemToDelete?.itemName}'</strong>{" "}
+            정말로 {/* Corrected unescaped entities */}
+            <strong className="font-medium">
+              &lsquo;{itemToDelete?.itemName}&rsquo;
+            </strong>{" "}
             (ID: {itemToDelete?.id}) 비품을 삭제하시겠습니까?
             <br />이 작업은 되돌릴 수 없습니다.
           </p>

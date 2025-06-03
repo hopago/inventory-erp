@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
             message: '회원가입 성공',
             user: { id: user.id, username: user.username }
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
     }
 }

@@ -36,7 +36,16 @@ function errorResponse(message: string, status: number = 400) {
 }
 
 // 성공 응답 헬퍼 함수
-function successResponse(data: any, status: number = 200, meta?: any) {
+function successResponse(data: {
+    [key: string]: any; // 데이터 형식에 맞게 조정
+}, status: number = 200, meta?: {
+    currentPage?: number;
+    totalPages?: number;
+    totalCount?: number;
+    limit?: number;
+    hasPrevPage?: boolean;
+    hasNextPage?: boolean;
+}) {
     return NextResponse.json({
         data,
         success: true,
@@ -96,7 +105,12 @@ export async function GET(request: NextRequest) {
         // ... rest of your GET handler logic remains the same
 
         // 필터 조건 구성
-        const where: any = {};
+        const where: {
+            userId?: number;
+            completed?: boolean;
+            priority?: TodoPriority;
+            text?: { contains: string; mode: 'insensitive' };
+        } = {};
 
         if (userId) { // userId here would be number | undefined after validation
             where.userId = userId;

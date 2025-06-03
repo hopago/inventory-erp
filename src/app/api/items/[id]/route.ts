@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from "@/lib/auth"
+import { Cabin_Sketch } from 'next/font/google';
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
     try {
@@ -27,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         });
 
         return NextResponse.json(item);
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
     }
 }
@@ -46,7 +47,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         });
 
         return NextResponse.json({ message: '삭제되었습니다.' });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
     }
 }

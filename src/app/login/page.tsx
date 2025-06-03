@@ -1,41 +1,44 @@
 // app/login/page.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Building2, Shield } from 'lucide-react';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Building2, Shield } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [credentials, setCredentials] = useState({
+    username: "",
+    password: "",
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        router.push('/dashboard');
+        router.push("/dashboard");
       } else {
-        setError(data.error || '로그인에 실패했습니다.');
+        setError(data.error || "로그인에 실패했습니다.");
       }
-    } catch (error) {
-      setError('네트워크 오류가 발생했습니다.');
+    } catch {
+      setError("네트워크 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +50,9 @@ export default function LoginPage() {
         <CardHeader className="text-center space-y-4">
           <div className="flex items-center justify-center space-x-2">
             <Building2 className="h-8 w-8 text-blue-600" />
-            <div className="text-2xl font-bold text-blue-600">INVENTORY ERP</div>
+            <div className="text-2xl font-bold text-blue-600">
+              INVENTORY ERP
+            </div>
           </div>
           <div className="text-sm text-gray-500">재고 관리 시스템</div>
           <Badge variant="outline" className="text-xs">
@@ -66,18 +71,22 @@ export default function LoginPage() {
               type="text"
               placeholder="사용자명"
               value={credentials.username}
-              onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+              onChange={(e) =>
+                setCredentials({ ...credentials, username: e.target.value })
+              }
               required
             />
             <Input
               type="password"
               placeholder="비밀번호"
               value={credentials.password}
-              onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+              onChange={(e) =>
+                setCredentials({ ...credentials, password: e.target.value })
+              }
               required
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? '로그인 중...' : '로그인'}
+              {isLoading ? "로그인 중..." : "로그인"}
             </Button>
           </form>
         </CardContent>

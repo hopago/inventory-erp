@@ -1,7 +1,6 @@
 // app/api/items/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from "@/lib/auth"; // Assuming this is your JWT verification logic
 
 // Define ProgressStatus enum for Prisma (if not already in your schema.prisma, this is for type safety here)
 enum ProgressStatus {
@@ -36,7 +35,10 @@ export async function GET(request: NextRequest) {
 
         const skip = (page - 1) * limit;
 
-        const whereClause: any = {};
+        const whereClause: {
+            storeName?: string;
+            itemName?: { contains: string; mode: 'insensitive' }; // For case-insensitive search
+        } = {};
         if (storeName) {
             whereClause.storeName = storeName;
         }
