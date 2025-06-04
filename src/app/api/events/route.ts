@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             message?: string;
             stack?: string;
             code?: string;
-            meta?: any;
+            meta?: any;  // Prisma error metadata
         }
         console.error('Error creating calendar event:', err);
         if (err.name === 'SyntaxError') { // Malformed JSON
