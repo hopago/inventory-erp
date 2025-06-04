@@ -509,28 +509,55 @@ export default function DashboardPage() {
               매장
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center h-[300px]">
+
+          <CardContent className="flex flex-col h-[300px]">
             {storesWithMostPendingItems.length > 0 ? (
-              storesWithMostPendingItems.map((store) => (
-                <div key={store.storeName} className="text-center p-4">
-                  <Store className="h-12 w-12 text-red-500 mx-auto mb-2" />
-                  <p className="text-xl font-bold text-red-600">
-                    {store.storeName}
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-700">
-                    {store.pendingCount}개 대기 중
-                  </p>
-                  <p className="text-sm text-gray-500">(미확인 + 진행 중)</p>
+              storesWithMostPendingItems.length === 1 ? (
+                // 단일 매장: 기존처럼 중앙 정렬
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center p-4">
+                    <Store className="h-12 w-12 text-red-500 mx-auto mb-2" />
+                    <p className="text-xl font-bold text-red-600">
+                      {storesWithMostPendingItems[0].storeName}
+                    </p>
+                    <p className="text-2xl font-semibold text-gray-700">
+                      {storesWithMostPendingItems[0].pendingCount}개 대기 중
+                    </p>
+                    <p className="text-sm text-gray-500">(미확인 + 진행 중)</p>
+                  </div>
                 </div>
-              ))
+              ) : (
+                // 다중 매장: 스크롤 형태
+                <div className="overflow-y-auto space-y-4 py-4">
+                  {storesWithMostPendingItems.map((store) => (
+                    <div
+                      key={store.storeName}
+                      className="text-center p-4 border-b border-gray-100 last:border-b-0"
+                    >
+                      <Store className="h-10 w-10 text-red-500 mx-auto mb-2" />
+                      <p className="text-lg font-bold text-red-600">
+                        {store.storeName}
+                      </p>
+                      <p className="text-xl font-semibold text-gray-700">
+                        {store.pendingCount}개 대기 중
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        (미확인 + 진행 중)
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="text-center">
-                <TrendingUp className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                <p className="text-lg text-gray-600">
-                  모든 매장의 대기 품목이 없거나
-                  <br />
-                  데이터를 분석 중입니다.
-                </p>
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <TrendingUp className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                  <p className="text-lg text-gray-600">
+                    모든 매장의 대기 품목이 없거나
+                    <br />
+                    데이터를 분석 중입니다.
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>

@@ -514,13 +514,13 @@ const TodoPage: React.FC = () => {
     [initialFormData] // Ensure initialFormData is stable
   ); // Memoize resetForm
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.text.trim()) {
       toast.error("할 일을 입력해주세요.");
       return;
     }
-    createTodo(formData);
+    await createTodo(formData);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {

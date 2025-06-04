@@ -256,3 +256,111 @@ export async function DELETE(
         return errorResponse(errorMessage, 500);
     }
 }
+
+const VALID_PRIORITIES: TodoPriority[] = [
+    TodoPriority.HIGH,
+    TodoPriority.MEDIUM,
+    TodoPriority.LOW,
+]; // Example: Adjust if your enum values are different strings
+
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+
+        const {
+            text,
+            priority,
+            deadline, // Expected as ISO string (from datetime-local) or null
+            completed, // Expected as boolean
+            // userId, // If you were to pass userId in the body
+        } = body;
+
+        // --- Validation ---
+        if (!text || typeof text !== 'string' || text.trim() === '') {
+            return NextResponse.json(
+                { error: 'Text is required and must be a non-empty string.' },
+                { status: 400 }
+            );
+        }
+        if (text.length > 200) { // Based on client-side maxLength
+            return NextResponse.json(
+                { error: 'Text must be 200 characters or less.' },
+                { status: 400 }
+            );
+        }
+
+        if (!priority || !VALID_PRIORITIES.includes(priority as TodoPriority)) {
+            return NextResponse.json(
+                { error: `Priority is required and must be one of: ${VALID_PRIORITIES.join(', ')}` },
+                { status: 400 }
+            );
+        }
+
+        const isCompleted = typeof completed === 'boolean' ? completed : false; // Default to false if not provided or invalid type
+
+        let deadlineDate: Date | null = null;
+        if (deadline) {
+            if (typeof deadline !== 'string') {
+                return NextResponse.json(
+                    { error: 'Deadline must be a valid date-time string or null.' },
+                    { status: 400 }
+                );
+            }
+            deadlineDate = new Date(deadline);
+            if (isNaN(deadlineDate.getTime())) {
+                return NextResponse.json(
+                    { error: 'Invalid deadline date format.' },
+                    { status: 400 }
+                );
+            }
+        }
+
+        // --- Prepare data for Prisma ---
+        const dataToCreate: Prisma.TodoCreateInput = {
+            text: text.trim(),
+            priority: priority as TodoPriority,
+            completed: isCompleted,
+            deadline: deadlineDate,
+            // userId: userId // If you get userId from session/auth, add it here
+            // Example: const session = await getServerSession(authOptions);
+            // if (session?.user?.id) { dataToCreate.user = { connect: { id: session.user.id } }; }
+            // For now, assuming userId is optional or handled differently as per your schema
+        };
+
+        // --- Create Todo item ---
+        const newTodo = await prisma.todo.create({
+            data: dataToCreate,
+        });
+
+        return NextResponse.json(newTodo, { status: 201 }); // Success: return created todo
+
+    } catch (error) {
+        console.error("Failed to create todo:", error);
+
+        if (error instanceof SyntaxError && error.message.includes("JSON")) {
+            return NextResponse.json(
+                { error: "Invalid JSON payload provided." },
+                { status: 400 }
+            );
+        }
+        if (error instanceof Prisma.PrismaClientValidationError) {
+            return NextResponse.json(
+                { error: "Validation failed for Todo creation.", details: error.message },
+                { status: 400 }
+            );
+        }
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            // Handle specific Prisma errors if needed
+            // Example: if (error.code === 'P2002') { /* unique constraint failed */ }
+            return NextResponse.json(
+                { error: "Database error occurred.", details: error.code },
+                { status: 500 } // Or 409 for conflicts, etc.
+            );
+        }
+
+        return NextResponse.json(
+            { error: 'An unexpected error occurred on the server.' },
+            { status: 500 }
+        );
+    }
+}
