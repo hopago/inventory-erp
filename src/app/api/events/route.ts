@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     const viewEnd = new Date(queryViewEndStr);
 
     if (isNaN(viewStart.getTime()) || isNaN(viewEnd.getTime())) {
-        return NextResponse.json({ error: '유효하지 않은 start 또는 end 날짜 형식입니다.' }, { status: 400 });
+        return NextResponse.json({ error: '유효하지 않은 start 또는 end 날짜 형식입니다.' }, { status: 400 }); // Invalid date format
     }
 
     try {
