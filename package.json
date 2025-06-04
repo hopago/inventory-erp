@@ -14,6 +14,11 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@fullcalendar/daygrid": "^6.1.17",
+    "@fullcalendar/interaction": "^6.1.17",
+    "@fullcalendar/list": "^6.1.17",
+    "@fullcalendar/react": "^6.1.17",
+    "@fullcalendar/timegrid": "^6.1.17",
     "@hookform/resolvers": "^5.0.1",
     "@prisma/client": "^6.8.2",
     "@radix-ui/react-checkbox": "^1.3.2",
