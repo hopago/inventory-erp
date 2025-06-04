@@ -72,15 +72,20 @@ export async function verifyToken(token: string): Promise<AuthTokenPayload | nul
         );
         // The payload is already typed as AuthTokenPayload due to the generic.
         return payload;
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const err = error as {
+            code?: string;
+            message?: string;
+            name?: string;
+        }
         // Log the error for debugging on the server.
         // Avoid logging the token itself in production logs unless necessary and secured.
-        if (error.code === 'ERR_JWT_EXPIRED') {
+        if (err.code === 'ERR_JWT_EXPIRED') {
             console.error('Token verification failed: Token has expired.');
-        } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+        } else if (err.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
             console.error('Token verification failed: Signature verification failed.');
         } else {
-            console.error('Invalid token:', error.message || error.code || 'Unknown token verification error');
+            console.error('Invalid token:', err.message || err.code || 'Unknown token verification error');
         }
         return null;
     }
