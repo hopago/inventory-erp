@@ -90,7 +90,7 @@ const EventModal: React.FC<EventModalProps> = ({
       if (isNaN(d.getTime())) return "";
       const localDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
       return localDate.toISOString().substring(0, 16);
-    } catch (e) {
+    } catch {
       return "";
     }
   };

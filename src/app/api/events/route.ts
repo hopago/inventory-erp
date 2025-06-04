@@ -57,7 +57,10 @@ export async function POST(request: NextRequest) {
             message?: string;
             stack?: string;
             code?: string;
-            meta?: any;  // Prisma error metadata
+            meta?: {
+                target?: string | string[];
+                cause?: string;
+            };  // Prisma error metadata
         }
         console.error('Error creating calendar event:', err);
         if (err.name === 'SyntaxError') { // Malformed JSON
@@ -121,8 +124,7 @@ export async function GET(request: NextRequest) {
             },
         });
         return NextResponse.json(events);
-    } catch (error) {
-        console.error('Error fetching calendar events:', error);
+    } catch {
         return NextResponse.json({ error: '일정 조회 중 오류가 발생했습니다.' }, { status: 500 });
     }
 }
